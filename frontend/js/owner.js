@@ -1,39 +1,40 @@
-// ✅ Logout
 function logout() {
   sessionStorage.clear();
   localStorage.removeItem("token");
   window.location.href = "login.html";
 }
 
-// ✅ Welcome message
 document.getElementById("welcome").innerText = `Welcome, Owner`;
 
-// ✅ Fetch both Projects and Invoices from /api/data
 async function fetchOwnerData() {
   try {
     const res = await fetch("/api/data");
-
-    if (!res.ok) {
-      console.error("Server returned:", res.status, res.statusText);
-      throw new Error("Failed to load owner dashboard data.");
-    }
-
     const { data } = await res.json();
-
-    populateTable("projectsTable", Array.isArray(data.projects) ? data.projects : []);
-    populateTable("invoicesTable", Array.isArray(data.invoices) ? data.invoices : []);
-    
+    populateTable("projectsTable", data.projects || []);
+    populateTable("invoicesTable", data.invoices || []);
   } catch (err) {
     console.error("Owner dashboard load error:", err);
     alert("Error loading dashboard data.");
   }
+
+  // Load audit log
+  loadAuditLog();
 }
 
-// ✅ Populate table dynamically
+async function loadAuditLog() {
+  try {
+    const res = await fetch("/api/data/audit-log");
+    const { data } = await res.json();
+    populateTable("auditLogTable", data || []);
+  } catch (err) {
+    console.error("Audit log load error:", err);
+    alert("Error loading audit log.");
+  }
+}
+
 function populateTable(tableId, data) {
   const tbody = document.getElementById(tableId).querySelector("tbody");
   tbody.innerHTML = "";
-  
   if (!data || data.length === 0) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
@@ -56,7 +57,6 @@ function populateTable(tableId, data) {
   });
 }
 
-// ✅ Table Filter
 function filterTable(tableId, query) {
   const rows = document.getElementById(tableId).getElementsByTagName("tr");
   query = query.toLowerCase();
@@ -73,6 +73,7 @@ function filterTable(tableId, query) {
   }
 }
 
-// ✅ Initial load
+// Initial load
 fetchOwnerData();
+
 
