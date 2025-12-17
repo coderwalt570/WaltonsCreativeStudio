@@ -48,10 +48,23 @@
     <tbody></tbody>
   </table>
 
+  <!-- Expense Summary Section -->
+  <h3 style="margin-top:40px;">Expense Summary</h3>
+  <input type="text" placeholder="Search summary..." oninput="filterTable('expenseSummaryTable', this.value)">
+  <table id="expenseSummaryTable">
+    <thead>
+      <tr>
+        <th>Project ID</th>
+        <th>Total Amount</th>
+        <th>Number of Expenses</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
 </div>
 
 <script src="js/accountant.js"></script>
-
 </body>
 </html>
 
