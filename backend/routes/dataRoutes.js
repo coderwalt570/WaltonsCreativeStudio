@@ -119,7 +119,11 @@ router.get("/expenses", requireAuth, async (req, res) => {
       `
       SELECT 
         LogID AS expenseID,
-        Details AS description,
+        SUBSTRING(Details, 15, CHARINDEX('|', Details) - 15) AS description,
+        CAST(
+          REPLACE(SUBSTRING(Details, CHARINDEX('$', Details) + 1, 20), ')', '')
+          AS DECIMAL(10,2)
+        ) AS amount,
         Timestamp AS dateRecorded
       FROM AuditLog
       WHERE UserID = @id
