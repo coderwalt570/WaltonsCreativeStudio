@@ -40,12 +40,28 @@
         <th>Amount</th>
         <th>Date Issued</th>
         <th>Payment Status</th>
-        </tr>
-      </thead>
+      </tr>
+    </thead>
     <tbody></tbody>
-    </table>
+  </table>
+
+  <h3>Audit Log</h3>
+  <input type="text" id="auditSearch" placeholder="Search Audit Log..." oninput="filterTable('auditLogTable', this.value)">
+  <table id="auditLogTable">
+    <thead>
+      <tr>
+        <th>Log ID</th>
+        <th>User ID</th>
+        <th>Action</th>
+        <th>Details</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 <script src="js/owner.js"></script>
 </body>
 </html>
+
