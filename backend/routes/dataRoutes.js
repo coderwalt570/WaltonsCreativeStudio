@@ -74,10 +74,13 @@ router.get("/expenses-summary", requireAuth, async (req, res) => {
 
   try {
     const summary = await executeQuery(`
-      SELECT ProjectID, SUM(Amount) AS TotalAmount, COUNT(*) AS NumberOfExpenses
+      SELECT 
+        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS ProjectID,
+        COUNT(*) AS NumberOfExpenses,
+        SUM(CAST(REPLACE(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20),')','') AS DECIMAL(10,2))) AS TotalAmount
       FROM AuditLog
-      WHERE Action = 'CREATE_EXPENSE'
-      GROUP BY ProjectID
+      WHERE Action='CREATE_EXPENSE'
+      GROUP BY CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT)
       ORDER BY ProjectID
     `);
     res.json({ data: summary });
@@ -95,21 +98,17 @@ router.post("/expenses", requireAuth, async (req, res) => {
   const { description, amount, projectID } = req.body;
 
   try {
+    // Standardize Details format for easier parsing
+    const details = `ProjectID:${projectID} | ${description} | $${amount}`;
+
     await executeQuery(
       `
       INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
-      VALUES (
-        @id,
-        'CREATE_EXPENSE',
-        CONCAT('ProjectID:', @projectID, ' | ', @description, ' | $', @amount),
-        GETDATE()
-      )
+      VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
       `,
       [
         { name: "id", type: sql.Int, value: id },
-        { name: "description", type: sql.NVarChar, value: description },
-        { name: "amount", type: sql.Decimal(10,2), value: amount },
-        { name: "projectID", type: sql.Int, value: projectID }
+        { name: "details", type: sql.NVarChar, value: details }
       ]
     );
 
@@ -130,11 +129,12 @@ router.get("/expenses", requireAuth, async (req, res) => {
       `
       SELECT 
         LogID AS expenseID,
-        SUBSTRING(Details, CHARINDEX('|', Details)+2, CHARINDEX('|', Details, CHARINDEX('|', Details)+1) - CHARINDEX('|', Details)-3) AS description,
+        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
+        SUBSTRING(Details, CHARINDEX('|', Details)+2, CHARINDEX('|', Details, CHARINDEX('|', Details)+1)-CHARINDEX('|', Details)-3) AS description,
         CAST(REPLACE(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20), ')','') AS DECIMAL(10,2)) AS amount,
         Timestamp AS dateRecorded
       FROM AuditLog
-      WHERE UserID = @id AND Action = 'CREATE_EXPENSE'
+      WHERE UserID=@id AND Action='CREATE_EXPENSE'
       ORDER BY Timestamp DESC
       `,
       [{ name: "id", type: sql.Int, value: id }]
@@ -148,5 +148,3 @@ router.get("/expenses", requireAuth, async (req, res) => {
 });
 
 export default router;
-
-
