@@ -17,13 +17,7 @@
 
   <!-- PROJECTS SECTION -->
   <h3>My Projects</h3>
-  <input
-    type="text"
-    id="projectSearch"
-    placeholder="Search Projects..."
-    oninput="filterTable('projectsTable', this.value)"
-  >
-
+  <input type="text" id="projectSearch" placeholder="Search Projects..." oninput="filterTable('projectsTable', this.value)">
   <table id="projectsTable">
     <thead>
       <tr>
@@ -41,27 +35,37 @@
 
   <!-- ADD EXPENSE FORM -->
   <h3>Add Expense</h3>
+  <form id="expenseForm" onsubmit="saveExpense(event)">
+    <label>Project ID:</label>
+    <input type="number" id="projectID" required><br>
 
-  <form onsubmit="addExpense(); return false;">
-    <label>Description:</label>
-    <input type="text" id="expDesc" required><br>
+    <label>Amount:</label>
+    <input type="number" step="0.01" id="amount" required><br>
 
-    <label>Amount ($):</label>
-    <input type="number" step="0.01" id="expAmount" required><br>
+    <label>Category:</label>
+    <input type="text" id="category" required><br>
+
+    <label>Notes:</label>
+    <textarea id="notes"></textarea><br>
 
     <button type="submit" class="btn">Save Expense</button>
   </form>
+
+  <p id="expenseMessage" style="color: green;"></p>
 
   <hr>
 
   <!-- EXPENSE TABLE -->
   <h3>My Expenses</h3>
+  <input type="text" placeholder="Search expenses..." oninput="filterTable('expensesTable', this.value)">
   <table id="expensesTable">
     <thead>
       <tr>
         <th>Expense ID</th>
-        <th>Description</th>
+        <th>Project ID</th>
         <th>Amount</th>
+        <th>Category</th>
+        <th>Notes</th>
         <th>Date Created</th>
       </tr>
     </thead>
@@ -69,11 +73,7 @@
   </table>
 </div>
 
-<!-- Manager Dashboard Logic -->
 <script src="js/manager.js"></script>
 
 </body>
 </html>
-
-
-
