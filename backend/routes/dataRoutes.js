@@ -71,7 +71,7 @@ router.get("/accountant", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- MANAGER: ADD EXPENSE + AUDIT ---------------------- */
+/* ---------------------- MANAGER: ADD EXPENSE (AUDIT LOG) ---------------------- */
 router.post("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
 
@@ -82,42 +82,31 @@ router.post("/expenses", requireAuth, async (req, res) => {
   const { description, amount } = req.body;
 
   try {
-    // Insert expense
-    const result = await executeQuery(
+    await executeQuery(
       `
-      INSERT INTO Expense (managerID, description, amount, dateRecorded)
-      OUTPUT INSERTED.expenseID
-      VALUES (@id, @description, @amount, GETDATE())
+      INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
+      VALUES (
+        @id,
+        'CREATE_EXPENSE',
+        CONCAT('Expense added: ', @description, ' | Amount: $', @amount),
+        GETDATE()
+      )
       `,
       [
         { name: "id", type: sql.Int, value: id },
-        { name: "description", type: sql.VarChar, value: description },
+        { name: "description", type: sql.NVarChar, value: description },
         { name: "amount", type: sql.Decimal(10, 2), value: amount }
       ]
     );
 
-    const expenseID = result[0].expenseID;
-
-    // Audit log
-    await executeQuery(
-      `
-      INSERT INTO AuditLog (userID, action, entity, entityID)
-      VALUES (@id, 'CREATE', 'Expense', @expenseID)
-      `,
-      [
-        { name: "id", type: sql.Int, value: id },
-        { name: "expenseID", type: sql.Int, value: expenseID }
-      ]
-    );
-
-    res.json({ success: true, message: "Expense added successfully" });
+    res.json({ success: true, message: "Expense recorded successfully" });
   } catch (err) {
-    console.error("Expense Insert Error:", err);
-    res.status(500).json({ message: "Server error adding expense" });
+    console.error("Expense Audit Error:", err);
+    res.status(500).json({ message: "Server error recording expense" });
   }
 });
 
-/* ---------------------- MANAGER: GET EXPENSES ---------------------- */
+/* ---------------------- MANAGER: GET EXPENSES (FROM AUDIT LOG) ---------------------- */
 router.get("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
 
@@ -128,9 +117,14 @@ router.get("/expenses", requireAuth, async (req, res) => {
   try {
     const expenses = await executeQuery(
       `
-      SELECT expenseID, description, amount, dateRecorded
-      FROM Expense
-      WHERE managerID = @id
+      SELECT 
+        LogID AS expenseID,
+        Details AS description,
+        Timestamp AS dateRecorded
+      FROM AuditLog
+      WHERE UserID = @id
+        AND Action = 'CREATE_EXPENSE'
+      ORDER BY Timestamp DESC
       `,
       [{ name: "id", type: sql.Int, value: id }]
     );
