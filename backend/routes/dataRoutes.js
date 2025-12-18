@@ -40,6 +40,47 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
+/* ---------------------- OWNER: VIEW EXPENSES ---------------------- */
+router.get("/expenses-owner", requireAuth, async (req, res) => {
+  const { role } = req.session.user;
+  if (role.toLowerCase() !== "owner") return res.status(403).json({ message: "Owners only" });
+
+  try {
+    const expenses = await executeQuery(`
+      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
+      FROM AuditLog
+      WHERE Action='CREATE_EXPENSE'
+      ORDER BY Timestamp DESC
+    `);
+
+    // parse fields in JS
+    const parsed = expenses.map(exp => {
+      const parts = exp.Details.split('|').map(p => p.trim());
+      let projectID = null, description = '', amount = 0;
+
+      if (parts.length === 3) {
+        const projMatch = parts[0].match(/ProjectID:(\d+)/);
+        if (projMatch) projectID = parseInt(projMatch[1]);
+        description = parts[1];
+        amount = parseFloat(parts[2].replace('$',''));
+      }
+
+      return {
+        expenseID: exp.expenseID,
+        projectID,
+        description,
+        amount,
+        dateRecorded: exp.dateRecorded
+      };
+    });
+
+    res.json({ data: parsed });
+  } catch (err) {
+    console.error("Owner Expense Fetch Error:", err);
+    res.status(500).json({ message: "Server error loading owner expenses" });
+  }
+});
+
 /* ---------------------- ACCOUNTANT DASHBOARD ---------------------- */
 router.get("/accountant", requireAuth, async (req, res) => {
   const { role } = req.session.user;
@@ -47,10 +88,12 @@ router.get("/accountant", requireAuth, async (req, res) => {
 
   try {
     const invoices = await executeQuery(`
-      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus FROM Invoice
+      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
+      FROM Invoice
     `);
     const payments = await executeQuery(`
-      SELECT paymentID, invoiceID, method, totalAmount, transactionDate FROM Payment
+      SELECT paymentID, invoiceID, method, totalAmount, transactionDate
+      FROM Payment
     `);
     res.json({ data: { invoices, payments } });
   } catch (err) {
@@ -67,15 +110,28 @@ router.get("/expenses-summary", requireAuth, async (req, res) => {
   try {
     const summary = await executeQuery(`
       SELECT
-        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS ProjectID,
-        COUNT(*) AS NumberOfExpenses,
-        SUM(CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2))) AS TotalAmount
+        Details
       FROM AuditLog
       WHERE Action='CREATE_EXPENSE'
-      GROUP BY CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT)
-      ORDER BY ProjectID
     `);
-    res.json({ data: summary });
+
+    // parse in JS
+    const parsedSummary = {};
+    summary.forEach(exp => {
+      const parts = exp.Details.split('|').map(p => p.trim());
+      if (parts.length === 3) {
+        const projMatch = parts[0].match(/ProjectID:(\d+)/);
+        if (!projMatch) return;
+        const projectID = parseInt(projMatch[1]);
+        const amount = parseFloat(parts[2].replace('$',''));
+
+        if (!parsedSummary[projectID]) parsedSummary[projectID] = { ProjectID: projectID, NumberOfExpenses: 0, TotalAmount: 0 };
+        parsedSummary[projectID].NumberOfExpenses += 1;
+        parsedSummary[projectID].TotalAmount += amount;
+      }
+    });
+
+    res.json({ data: Object.values(parsedSummary) });
   } catch (err) {
     console.error("Expense Summary Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expense summary" });
@@ -91,6 +147,7 @@ router.post("/expenses", requireAuth, async (req, res) => {
 
   try {
     const details = `ProjectID:${projectID} | ${description} | $${amount}`;
+
     await executeQuery(`
       INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
       VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
@@ -113,16 +170,7 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     const expenses = await executeQuery(`
-      SELECT 
-        LogID AS expenseID,
-        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
-        LTRIM(RTRIM(SUBSTRING(
-          Details,
-          CHARINDEX('|', Details)+1,
-          CHARINDEX('|', Details, CHARINDEX('|', Details)+1) - CHARINDEX('|', Details)-1
-        ))) AS description,
-        CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2)) AS amount,
-        Timestamp AS dateRecorded
+      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
       FROM AuditLog
       WHERE UserID=@id AND Action='CREATE_EXPENSE'
       ORDER BY Timestamp DESC
@@ -130,39 +178,30 @@ router.get("/expenses", requireAuth, async (req, res) => {
       { name: "id", type: sql.Int, value: id }
     ]);
 
-    res.json({ data: expenses });
+    // parse in JS
+    const parsed = expenses.map(exp => {
+      const parts = exp.Details.split('|').map(p => p.trim());
+      let projectID = null, description = '', amount = 0;
+
+      if (parts.length === 3) {
+        const projMatch = parts[0].match(/ProjectID:(\d+)/);
+        if (projMatch) projectID = parseInt(projMatch[1]);
+        description = parts[1];
+        amount = parseFloat(parts[2].replace('$',''));
+      }
+
+      return {
+        expenseID: exp.expenseID,
+        projectID,
+        description,
+        amount,
+        dateRecorded: exp.dateRecorded
+      };
+    });
+
+    res.json({ data: parsed });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
-    res.status(500).json({ message: "Server error loading expenses" });
-  }
-});
-
-/* ---------------------- OWNER: GET ALL EXPENSES ---------------------- */
-router.get("/expenses-owner", requireAuth, async (req, res) => {
-  const { role } = req.session.user;
-  if (role.toLowerCase() !== "owner") return res.status(403).json({ message: "Owners only" });
-
-  try {
-    const expenses = await executeQuery(`
-      SELECT
-        LogID AS expenseID,
-        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
-        LTRIM(RTRIM(SUBSTRING(
-          Details,
-          CHARINDEX('|', Details)+1,
-          CHARINDEX('|', Details, CHARINDEX('|', Details)+1) - CHARINDEX('|', Details)-1
-        ))) AS description,
-        CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2)) AS amount,
-        Timestamp AS dateRecorded,
-        UserID AS managerID
-      FROM AuditLog
-      WHERE Action='CREATE_EXPENSE'
-      ORDER BY Timestamp DESC
-    `);
-
-    res.json({ data: expenses });
-  } catch (err) {
-    console.error("Owner Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
   }
 });
