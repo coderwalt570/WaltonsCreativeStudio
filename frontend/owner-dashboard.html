@@ -15,6 +15,7 @@
 <div class="container">
   <h2 id="welcome"></h2>
 
+  <!-- PROJECTS SECTION -->
   <h3>Projects</h3>
   <input type="text" id="projectSearch" placeholder="Search Projects..." oninput="filterTable('projectsTable', this.value)">
   <table id="projectsTable">
@@ -30,6 +31,7 @@
     <tbody></tbody>
   </table>
 
+  <!-- INVOICES SECTION -->
   <h3>Invoices</h3>
   <input type="text" id="invoiceSearch" placeholder="Search Invoices..." oninput="filterTable('invoicesTable', this.value)">
   <table id="invoicesTable">
@@ -45,16 +47,18 @@
     <tbody></tbody>
   </table>
 
-  <h3>Audit Log</h3>
-  <input type="text" id="auditSearch" placeholder="Search Audit Log..." oninput="filterTable('auditLogTable', this.value)">
-  <table id="auditLogTable">
+  <!-- EXPENSES SECTION -->
+  <h3>Expenses</h3>
+  <input type="text" placeholder="Search Expenses..." oninput="filterTable('expensesTable', this.value)">
+  <table id="expensesTable">
     <thead>
       <tr>
-        <th>Log ID</th>
-        <th>User ID</th>
-        <th>Action</th>
-        <th>Details</th>
-        <th>Timestamp</th>
+        <th>Expense ID</th>
+        <th>Project ID</th>
+        <th>Category</th>
+        <th>Notes</th>
+        <th>Amount</th>
+        <th>Date Created</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -64,4 +68,5 @@
 <script src="js/owner.js"></script>
 </body>
 </html>
+
 
