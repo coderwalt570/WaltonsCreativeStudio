@@ -14,10 +14,8 @@ const userRole = sessionStorage.getItem("role") || "Manager";
 document.getElementById("welcome").innerText = `Welcome, ${userRole}`;
 
 // ==============================
-// Initial Load
+// Fetch Dashboard Data
 // ==============================
-fetchDashboardData();
-
 async function fetchDashboardData() {
   await loadProjects();
   await loadExpenses();
@@ -49,20 +47,23 @@ async function saveExpense(event) {
   const category = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
 
-  const description = `${category} | ${notes}`;
-
   try {
     const res = await fetch("/api/data/expenses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectID, description, amount })
+      body: JSON.stringify({
+        projectID,
+        description: `${category} | ${notes}`,
+        amount
+      })
     });
 
     const result = await res.json();
-    document.getElementById("expenseMessage").innerText = result.message || "Expense saved successfully.";
+    document.getElementById("expenseMessage").innerText =
+      result.message || "Expense saved successfully.";
 
-    document.getElementById("expenseForm").reset();
     await loadExpenses();
+    document.getElementById("expenseForm").reset();
   } catch (err) {
     console.error("Save expense error:", err);
     alert("Error saving expense.");
@@ -88,31 +89,49 @@ async function loadExpenses() {
 // Populate Expenses Table
 // ==============================
 function populateExpensesTable(data) {
-  const tbody = document.querySelector("#expensesTable tbody");
+  const tbody = document.getElementById("expensesTable").querySelector("tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;">No expenses recorded</td>
+      </tr>`;
     return;
   }
 
   data.forEach(exp => {
+    let projectID = "";
     let category = "";
     let notes = "";
+    let amount = "";
 
-    if (exp.description?.includes("|")) {
-      [category, notes] = exp.description.split("|").map(v => v.trim());
-    } else {
-      notes = exp.description || "";
+    if (exp.Details) {
+      // Parse ProjectID
+      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+      projectID = projMatch ? projMatch[1] : "";
+
+      // Parse Category and Notes
+      const parts = exp.Details.split("|");
+      if (parts.length >= 2) {
+        category = parts[1].trim();
+      }
+      if (parts.length >= 3) {
+        notes = parts[2].replace(/\$/g, "").trim();
+      }
+
+      // Parse Amount
+      const amtMatch = exp.Details.match(/\$([\d.]+)/);
+      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
     }
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
-      <td>${exp.projectID ?? ""}</td>
-      <td>$${Number(exp.amount).toFixed(2)}</td>
+      <td>${projectID}</td>
       <td>${category}</td>
       <td>${notes}</td>
+      <td>$${amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
@@ -150,6 +169,12 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display =
+      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
+
+// ==============================
+// Initial Load
+// ==============================
+fetchDashboardData();
