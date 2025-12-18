@@ -124,7 +124,8 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display =
+      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
