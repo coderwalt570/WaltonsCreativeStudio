@@ -43,9 +43,9 @@ async function saveExpense(event) {
   event.preventDefault();
 
   const projectID = document.getElementById("projectID").value;
-  const amount = document.getElementById("amount").value;
-  const category = document.getElementById("category").value;
+  const description = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
+  const amount = document.getElementById("amount").value;
 
   try {
     const res = await fetch("/api/data/expenses", {
@@ -53,8 +53,8 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description: `${category}`,
-        amount: notes // amount stored in notes field for clarity in front-end parsing
+        description,
+        amount: parseFloat(amount).toFixed(2) + " | " + notes
       })
     });
 
@@ -103,6 +103,7 @@ function populateExpensesTable(data) {
       <td>${exp.expenseID}</td>
       <td>${exp.projectID}</td>
       <td>${exp.description}</td>
+      <td>${exp.notes}</td>
       <td>$${exp.amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
@@ -150,3 +151,4 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
