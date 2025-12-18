@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/* ====================== PROJECTS ====================== */
+/* ================= PROJECTS ================= */
 router.get("/projects", requireAuth, async (req, res) => {
   try {
     const projects = await executeQuery(`
@@ -18,11 +18,10 @@ router.get("/projects", requireAuth, async (req, res) => {
   }
 });
 
-/* ====================== OWNER DASHBOARD ====================== */
+/* ================= OWNER DASHBOARD ================= */
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const { role } = req.session.user;
-    if (role.toLowerCase() !== "owner") {
+    if (req.session.user.role.toLowerCase() !== "owner") {
       return res.status(403).json({ message: "Owners only" });
     }
 
@@ -43,54 +42,68 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-/* ====================== EXPENSES (OWNER + MANAGER) ====================== */
-router.get("/expenses", requireAuth, async (req, res) => {
-  const { role, id } = req.session.user;
-  const userRole = role.toLowerCase();
-
-  if (userRole !== "owner" && userRole !== "manager") {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
+/* ================= OWNER: GET ALL EXPENSES ================= */
+router.get("/owner/expenses", requireAuth, async (req, res) => {
   try {
-    let query = `
+    if (req.session.user.role.toLowerCase() !== "owner") {
+      return res.status(403).json({ message: "Owners only" });
+    }
+
+    const expenses = await executeQuery(`
       SELECT 
         LogID AS expenseID,
         Details,
         Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action = 'CREATE_EXPENSE'
-    `;
+      ORDER BY Timestamp DESC
+    `);
 
-    const params = [];
-
-    // Managers only see their own expenses
-    if (userRole === "manager") {
-      query += " AND UserID = @id";
-      params.push({ name: "id", type: sql.Int, value: id });
-    }
-
-    query += " ORDER BY Timestamp DESC";
-
-    const expenses = await executeQuery(query, params);
     res.json({ data: expenses });
   } catch (err) {
-    console.error("Expense Fetch Error:", err);
+    console.error("Owner Expense Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
   }
 });
 
-/* ====================== MANAGER: ADD EXPENSE ====================== */
-router.post("/expenses", requireAuth, async (req, res) => {
-  const { role, id } = req.session.user;
-
-  if (role.toLowerCase() !== "manager") {
-    return res.status(403).json({ message: "Managers only" });
-  }
-
-  const { description, amount, projectID } = req.body;
-
+/* ================= MANAGER: GET OWN EXPENSES ================= */
+router.get("/expenses", requireAuth, async (req, res) => {
   try {
+    const { id, role } = req.session.user;
+    if (role.toLowerCase() !== "manager") {
+      return res.status(403).json({ message: "Managers only" });
+    }
+
+    const expenses = await executeQuery(
+      `
+      SELECT 
+        LogID AS expenseID,
+        Details,
+        Timestamp AS dateRecorded
+      FROM AuditLog
+      WHERE Action='CREATE_EXPENSE'
+        AND UserID=@id
+      ORDER BY Timestamp DESC
+      `,
+      [{ name: "id", type: sql.Int, value: id }]
+    );
+
+    res.json({ data: expenses });
+  } catch (err) {
+    console.error("Manager Expense Error:", err);
+    res.status(500).json({ message: "Server error loading expenses" });
+  }
+});
+
+/* ================= MANAGER: ADD EXPENSE ================= */
+router.post("/expenses", requireAuth, async (req, res) => {
+  try {
+    const { id, role } = req.session.user;
+    if (role.toLowerCase() !== "manager") {
+      return res.status(403).json({ message: "Managers only" });
+    }
+
+    const { description, amount, projectID } = req.body;
     const details = `ProjectID:${projectID} | ${description} | $${amount}`;
 
     await executeQuery(
@@ -106,35 +119,10 @@ router.post("/expenses", requireAuth, async (req, res) => {
 
     res.json({ success: true, message: "Expense recorded successfully" });
   } catch (err) {
-    console.error("Expense Audit Error:", err);
+    console.error("Expense Insert Error:", err);
     res.status(500).json({ message: "Server error recording expense" });
   }
 });
 
-/* ====================== ACCOUNTANT DASHBOARD ====================== */
-router.get("/accountant", requireAuth, async (req, res) => {
-  const { role } = req.session.user;
-
-  if (role.toLowerCase() !== "accountant") {
-    return res.status(403).json({ message: "Accountants only" });
-  }
-
-  try {
-    const invoices = await executeQuery(`
-      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
-      FROM Invoice
-    `);
-
-    const payments = await executeQuery(`
-      SELECT paymentID, invoiceID, method, totalAmount, transactionDate
-      FROM Payment
-    `);
-
-    res.json({ data: { invoices, payments } });
-  } catch (err) {
-    console.error("Accountant Dashboard Error:", err);
-    res.status(500).json({ message: "Server error loading accountant dashboard" });
-  }
-});
-
 export default router;
+
