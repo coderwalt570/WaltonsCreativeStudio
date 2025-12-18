@@ -43,9 +43,9 @@ async function saveExpense(event) {
   event.preventDefault();
 
   const projectID = document.getElementById("projectID").value;
+  const amount = document.getElementById("amount").value;
   const category = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
-  const amount = document.getElementById("amount").value;
 
   try {
     const res = await fetch("/api/data/expenses", {
@@ -53,8 +53,8 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description: category + " | " + notes,
-        amount
+        description: category,
+        amount: amount
       })
     });
 
