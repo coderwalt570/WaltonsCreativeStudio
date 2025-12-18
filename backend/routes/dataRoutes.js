@@ -28,6 +28,7 @@ router.get("/", requireAuth, async (req, res) => {
       SELECT projectID, clientID, description, dueDate, status
       FROM Project
     `);
+
     const invoices = await executeQuery(`
       SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
       FROM Invoice
@@ -40,8 +41,8 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- OWNER: VIEW EXPENSES ---------------------- */
-router.get("/expenses-owner", requireAuth, async (req, res) => {
+/* ---------------------- OWNER: GET EXPENSES ---------------------- */
+router.get("/expenses", requireAuth, async (req, res) => {
   const { role } = req.session.user;
   if (role.toLowerCase() !== "owner") return res.status(403).json({ message: "Owners only" });
 
@@ -52,32 +53,10 @@ router.get("/expenses-owner", requireAuth, async (req, res) => {
       WHERE Action='CREATE_EXPENSE'
       ORDER BY Timestamp DESC
     `);
-
-    // parse fields in JS
-    const parsed = expenses.map(exp => {
-      const parts = exp.Details.split('|').map(p => p.trim());
-      let projectID = null, description = '', amount = 0;
-
-      if (parts.length === 3) {
-        const projMatch = parts[0].match(/ProjectID:(\d+)/);
-        if (projMatch) projectID = parseInt(projMatch[1]);
-        description = parts[1];
-        amount = parseFloat(parts[2].replace('$',''));
-      }
-
-      return {
-        expenseID: exp.expenseID,
-        projectID,
-        description,
-        amount,
-        dateRecorded: exp.dateRecorded
-      };
-    });
-
-    res.json({ data: parsed });
+    res.json({ data: expenses });
   } catch (err) {
-    console.error("Owner Expense Fetch Error:", err);
-    res.status(500).json({ message: "Server error loading owner expenses" });
+    console.error("Expense Fetch Error:", err);
+    res.status(500).json({ message: "Server error loading expenses" });
   }
 });
 
@@ -87,14 +66,8 @@ router.get("/accountant", requireAuth, async (req, res) => {
   if (role.toLowerCase() !== "accountant") return res.status(403).json({ message: "Accountants only" });
 
   try {
-    const invoices = await executeQuery(`
-      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
-      FROM Invoice
-    `);
-    const payments = await executeQuery(`
-      SELECT paymentID, invoiceID, method, totalAmount, transactionDate
-      FROM Payment
-    `);
+    const invoices = await executeQuery(`SELECT invoiceID, projectID, amount, dateIssued, paymentStatus FROM Invoice`);
+    const payments = await executeQuery(`SELECT paymentID, invoiceID, method, totalAmount, transactionDate FROM Payment`);
     res.json({ data: { invoices, payments } });
   } catch (err) {
     console.error("Accountant Dashboard Error:", err);
@@ -109,29 +82,12 @@ router.get("/expenses-summary", requireAuth, async (req, res) => {
 
   try {
     const summary = await executeQuery(`
-      SELECT
-        Details
+      SELECT Details, Timestamp
       FROM AuditLog
       WHERE Action='CREATE_EXPENSE'
+      ORDER BY Timestamp DESC
     `);
-
-    // parse in JS
-    const parsedSummary = {};
-    summary.forEach(exp => {
-      const parts = exp.Details.split('|').map(p => p.trim());
-      if (parts.length === 3) {
-        const projMatch = parts[0].match(/ProjectID:(\d+)/);
-        if (!projMatch) return;
-        const projectID = parseInt(projMatch[1]);
-        const amount = parseFloat(parts[2].replace('$',''));
-
-        if (!parsedSummary[projectID]) parsedSummary[projectID] = { ProjectID: projectID, NumberOfExpenses: 0, TotalAmount: 0 };
-        parsedSummary[projectID].NumberOfExpenses += 1;
-        parsedSummary[projectID].TotalAmount += amount;
-      }
-    });
-
-    res.json({ data: Object.values(parsedSummary) });
+    res.json({ data: summary });
   } catch (err) {
     console.error("Expense Summary Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expense summary" });
@@ -172,34 +128,13 @@ router.get("/expenses", requireAuth, async (req, res) => {
     const expenses = await executeQuery(`
       SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
       FROM AuditLog
-      WHERE UserID=@id AND Action='CREATE_EXPENSE'
+      WHERE Action='CREATE_EXPENSE' AND UserID=@id
       ORDER BY Timestamp DESC
     `, [
       { name: "id", type: sql.Int, value: id }
     ]);
 
-    // parse in JS
-    const parsed = expenses.map(exp => {
-      const parts = exp.Details.split('|').map(p => p.trim());
-      let projectID = null, description = '', amount = 0;
-
-      if (parts.length === 3) {
-        const projMatch = parts[0].match(/ProjectID:(\d+)/);
-        if (projMatch) projectID = parseInt(projMatch[1]);
-        description = parts[1];
-        amount = parseFloat(parts[2].replace('$',''));
-      }
-
-      return {
-        expenseID: exp.expenseID,
-        projectID,
-        description,
-        amount,
-        dateRecorded: exp.dateRecorded
-      };
-    });
-
-    res.json({ data: parsed });
+    res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
@@ -207,3 +142,4 @@ router.get("/expenses", requireAuth, async (req, res) => {
 });
 
 export default router;
+
