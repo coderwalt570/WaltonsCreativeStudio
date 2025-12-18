@@ -53,14 +53,13 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description: `${category} | ${notes}`,
-        amount
+        description: category,
+        amount: notes
       })
     });
 
     const result = await res.json();
-    document.getElementById("expenseMessage").innerText =
-      result.message || "Expense saved successfully.";
+    document.getElementById("expenseMessage").innerText = result.message || "Expense saved successfully.";
 
     await loadExpenses();
     document.getElementById("expenseForm").reset();
@@ -93,37 +92,15 @@ function populateExpensesTable(data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;">No expenses recorded</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
     return;
   }
 
   data.forEach(exp => {
-    let projectID = "";
-    let category = "";
-    let notes = "";
-    let amount = "";
-
-    if (exp.Details) {
-      // Parse ProjectID
-      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-      projectID = projMatch ? projMatch[1] : "";
-
-      // Parse Category and Notes
-      const parts = exp.Details.split("|");
-      if (parts.length >= 2) {
-        category = parts[1].trim();
-      }
-      if (parts.length >= 3) {
-        notes = parts[2].replace(/\$/g, "").trim();
-      }
-
-      // Parse Amount
-      const amtMatch = exp.Details.match(/\$([\d.]+)/);
-      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
-    }
+    let projectID = exp.projectID ?? "";
+    let category = exp.description ?? "";
+    let notes = exp.amount ?? "";
+    let amount = exp.amount ?? "";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -131,7 +108,7 @@ function populateExpensesTable(data) {
       <td>${projectID}</td>
       <td>${category}</td>
       <td>${notes}</td>
-      <td>$${amount}</td>
+      <td>$${parseFloat(amount).toFixed(2)}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
@@ -169,8 +146,7 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display =
-      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
@@ -178,3 +154,4 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
