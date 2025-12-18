@@ -50,7 +50,11 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT LogID AS expenseID, UserID, Details, Timestamp AS dateRecorded
+      SELECT 
+        LogID AS expenseID,
+        UserID,
+        Details,
+        Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action = 'CREATE_EXPENSE'
     `;
@@ -59,20 +63,18 @@ router.get("/expenses", requireAuth, async (req, res) => {
     if (userRole === "manager") {
       query += " AND UserID = @id";
       params.push({ name: "id", type: sql.Int, value: id });
-    }
-
-    if (userRole !== "owner" && userRole !== "manager") {
+    } else if (userRole !== "owner") {
       return res.status(403).json({ message: "Access denied" });
     }
 
     query += " ORDER BY Timestamp DESC";
 
-    const rawExpenses = await executeQuery(query, params);
+    const expenses = await executeQuery(query, params);
 
-    // Parse Details into structured fields
-    const expenses = rawExpenses.map(exp => {
+    // Format expenses for frontend
+    const formattedExpenses = expenses.map(exp => {
       let projectID = "";
-      let category = "";
+      let description = "";
       let notes = "";
       let amount = "";
 
@@ -81,7 +83,7 @@ router.get("/expenses", requireAuth, async (req, res) => {
         projectID = projMatch ? projMatch[1] : "";
 
         const parts = exp.Details.split("|");
-        if (parts.length >= 2) category = parts[1].trim();
+        if (parts.length >= 2) description = parts[1].trim();
         if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
 
         const amtMatch = exp.Details.match(/\$([\d.]+)/);
@@ -90,16 +92,15 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
       return {
         expenseID: exp.expenseID,
-        userID: exp.UserID,
         projectID,
-        description: category,
+        description,
         notes,
         amount,
         dateRecorded: exp.dateRecorded
       };
     });
 
-    res.json({ data: expenses });
+    res.json({ data: formattedExpenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
@@ -119,8 +120,10 @@ router.post("/expenses", requireAuth, async (req, res) => {
     const details = `ProjectID:${projectID} | ${description} | $${amount}`;
 
     await executeQuery(
-      `INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
-       VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())`,
+      `
+      INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
+      VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
+      `,
       [
         { name: "id", type: sql.Int, value: id },
         { name: "details", type: sql.NVarChar, value: details }
