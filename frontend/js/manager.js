@@ -43,7 +43,7 @@ async function saveExpense(event) {
   event.preventDefault();
 
   const projectID = document.getElementById("projectID").value;
-  const description = document.getElementById("category").value;
+  const category = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
   const amount = document.getElementById("amount").value;
 
@@ -53,8 +53,8 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description,
-        amount: parseFloat(amount).toFixed(2) + " | " + notes
+        description: category + " | " + notes,
+        amount
       })
     });
 
