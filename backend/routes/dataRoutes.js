@@ -50,23 +50,16 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT 
-        LogID AS expenseID,
-        Details,
-        Timestamp AS dateRecorded
+      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action='CREATE_EXPENSE'
     `;
     const params = [];
 
-    // Managers see only their own expenses
     if (userRole === "manager") {
       query += " AND UserID = @id";
       params.push({ name: "id", type: sql.Int, value: id });
-    }
-
-    // Owners see everything
-    if (userRole !== "owner" && userRole !== "manager") {
+    } else if (userRole !== "owner") {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -74,23 +67,21 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
     const rawExpenses = await executeQuery(query, params);
 
-    // Parse Details into structured fields
     const expenses = rawExpenses.map(exp => {
-      let projectID = "";
-      let category = "";
+      let projectID = "0";
+      let category = "Unknown";
       let notes = "";
-      let amount = "";
+      let amount = "0.00";
 
       if (exp.Details) {
         const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-        projectID = projMatch ? projMatch[1] : "";
+        projectID = projMatch ? projMatch[1] : "0";
 
         const parts = exp.Details.split("|");
-        if (parts.length >= 2) category = parts[1].trim();
-        if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
-
+        category = parts[1] ? parts[1].trim() : "Unknown";
+        notes = parts[2] ? parts[2].replace(/\$/g, "").trim() : "";
         const amtMatch = exp.Details.match(/\$([\d.]+)/);
-        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
+        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "0.00";
       }
 
       return {
@@ -166,3 +157,4 @@ router.get("/accountant", requireAuth, async (req, res) => {
 });
 
 export default router;
+
