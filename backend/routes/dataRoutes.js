@@ -59,37 +59,21 @@ router.get("/expenses", requireAuth, async (req, res) => {
     `;
     const params = [];
 
+    // Managers see only their own expenses
     if (userRole === "manager") {
       query += " AND UserID = @id";
       params.push({ name: "id", type: sql.Int, value: id });
-    } else if (userRole !== "owner") {
+    }
+
+    // Owners see all expenses
+    if (userRole !== "owner" && userRole !== "manager") {
       return res.status(403).json({ message: "Access denied" });
     }
 
     query += " ORDER BY Timestamp DESC";
 
     const expenses = await executeQuery(query, params);
-
-    // Parse ProjectID, description, and amount safely in JS
-    const parsedExpenses = expenses.map(exp => {
-      let projectID = "";
-      const match = exp.Details.match(/ProjectID:(\d+)/);
-      if (match) projectID = match[1];
-
-      const parts = exp.Details.split("|").map(p => p.trim());
-      const description = parts[1] ?? "";
-      const amount = parts[2]?.replace(/\$/g, "") ?? "";
-
-      return {
-        expenseID: exp.expenseID,
-        projectID,
-        description,
-        amount,
-        dateRecorded: exp.dateRecorded
-      };
-    });
-
-    res.json({ data: parsedExpenses });
+    res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
@@ -152,6 +136,5 @@ router.get("/accountant", requireAuth, async (req, res) => {
 });
 
 export default router;
-
 
 
