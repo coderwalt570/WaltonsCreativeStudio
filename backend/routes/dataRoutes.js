@@ -50,29 +50,55 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT 
-        LogID AS expenseID,
-        Details,
-        Timestamp AS dateRecorded
+      SELECT LogID AS expenseID, UserID, Details, Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action = 'CREATE_EXPENSE'
     `;
     const params = [];
 
-    // Managers see only their own expenses
     if (userRole === "manager") {
       query += " AND UserID = @id";
       params.push({ name: "id", type: sql.Int, value: id });
     }
 
-    // Owners see all expenses
     if (userRole !== "owner" && userRole !== "manager") {
       return res.status(403).json({ message: "Access denied" });
     }
 
     query += " ORDER BY Timestamp DESC";
 
-    const expenses = await executeQuery(query, params);
+    const rawExpenses = await executeQuery(query, params);
+
+    // Parse Details into structured fields
+    const expenses = rawExpenses.map(exp => {
+      let projectID = "";
+      let category = "";
+      let notes = "";
+      let amount = "";
+
+      if (exp.Details) {
+        const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+        projectID = projMatch ? projMatch[1] : "";
+
+        const parts = exp.Details.split("|");
+        if (parts.length >= 2) category = parts[1].trim();
+        if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
+
+        const amtMatch = exp.Details.match(/\$([\d.]+)/);
+        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
+      }
+
+      return {
+        expenseID: exp.expenseID,
+        userID: exp.UserID,
+        projectID,
+        description: category,
+        notes,
+        amount,
+        dateRecorded: exp.dateRecorded
+      };
+    });
+
     res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
@@ -93,10 +119,8 @@ router.post("/expenses", requireAuth, async (req, res) => {
     const details = `ProjectID:${projectID} | ${description} | $${amount}`;
 
     await executeQuery(
-      `
-      INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
-      VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
-      `,
+      `INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
+       VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())`,
       [
         { name: "id", type: sql.Int, value: id },
         { name: "details", type: sql.NVarChar, value: details }
@@ -136,5 +160,3 @@ router.get("/accountant", requireAuth, async (req, res) => {
 });
 
 export default router;
-
-
