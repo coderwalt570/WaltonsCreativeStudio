@@ -119,7 +119,7 @@ router.post("/expenses", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- MANAGER: GET EXPENSES (FROM AUDIT LOG) ---------------------- */
+/* ---------------------- MANAGER: GET EXPENSES (SAFE) ---------------------- */
 router.get("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
   if (role.toLowerCase() !== "manager") {
@@ -129,40 +129,10 @@ router.get("/expenses", requireAuth, async (req, res) => {
   try {
     const expenses = await executeQuery(
       `
-      SELECT
+      SELECT 
         LogID AS expenseID,
-
-        -- Extract ProjectID
-        CAST(
-          SUBSTRING(
-            Details,
-            CHARINDEX('ProjectID:', Details) + 10,
-            CHARINDEX('|', Details) - (CHARINDEX('ProjectID:', Details) + 10)
-          ) AS INT
-        ) AS projectID,
-
-        -- Extract description
-        LTRIM(RTRIM(
-          SUBSTRING(
-            Details,
-            CHARINDEX('|', Details) + 1,
-            CHARINDEX('|', Details, CHARINDEX('|', Details) + 1)
-              - CHARINDEX('|', Details) - 1
-          )
-        )) AS category,
-
-        -- Extract amount
-        CAST(
-          SUBSTRING(
-            Details,
-            CHARINDEX('$', Details) + 1,
-            LEN(Details)
-          ) AS DECIMAL(10,2)
-        ) AS amount,
-
-        Details AS notes,
-        Timestamp AS dateCreated
-
+        Details,
+        Timestamp AS dateRecorded
       FROM AuditLog
       WHERE UserID = @id
         AND Action = 'CREATE_EXPENSE'
