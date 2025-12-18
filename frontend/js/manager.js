@@ -30,7 +30,7 @@ async function loadProjects() {
     const result = await res.json();
 
     const projects = Array.isArray(result.data) ? result.data : [];
-    populateTable("projectsTable", projects);
+    populateGenericTable("projectsTable", projects);
   } catch (err) {
     console.error("Project load error:", err);
     alert("Error loading projects.");
@@ -61,9 +61,9 @@ async function saveExpense(event) {
 
     const result = await res.json();
     document.getElementById("expenseMessage").innerText =
-      result.message || "Expense saved.";
+      result.message || "Expense saved successfully.";
 
-    await loadExpenses(); // refresh table
+    await loadExpenses();
     document.getElementById("expenseForm").reset();
   } catch (err) {
     console.error("Save expense error:", err);
@@ -80,7 +80,7 @@ async function loadExpenses() {
     const result = await res.json();
 
     const expenses = Array.isArray(result.data) ? result.data : [];
-    populateTable("expensesTable", expenses);
+    populateExpensesTable(expenses);
   } catch (err) {
     console.error("Expense load error:", err);
     alert("Error loading expenses.");
@@ -88,9 +88,42 @@ async function loadExpenses() {
 }
 
 // ==============================
-// Populate Table
+// Populate Expenses Table (FIXED ORDER)
 // ==============================
-function populateTable(tableId, data) {
+function populateExpensesTable(data) {
+  const tbody = document.getElementById("expensesTable").querySelector("tbody");
+  tbody.innerHTML = "";
+
+  if (!data || data.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.innerText = "No expenses recorded";
+    td.style.textAlign = "center";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  data.forEach(row => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${row.expenseID}</td>
+      <td>${row.projectID ?? ""}</td>
+      <td>$${Number(row.amount).toFixed(2)}</td>
+      <td>${row.description}</td>
+      <td>${new Date(row.dateRecorded).toLocaleDateString()}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ==============================
+// Generic Table Renderer (Projects)
+// ==============================
+function populateGenericTable(tableId, data) {
   const tbody = document.getElementById(tableId).querySelector("tbody");
   tbody.innerHTML = "";
 
@@ -107,30 +140,11 @@ function populateTable(tableId, data) {
 
   data.forEach(row => {
     const tr = document.createElement("tr");
-
-    // ✅ SPECIAL HANDLING FOR EXPENSES (AuditLog parsing)
-    if (tableId === "expensesTable" && row.Details) {
-      const parts = row.Details.split("|").map(p => p.trim());
-
-      const projectID = parts[0]?.replace("ProjectID:", "") || "";
-      const description = parts[1] || "";
-      const amount = parts[2]?.replace("$", "") || "";
-
-      tr.innerHTML = `
-        <td>${row.expenseID}</td>
-        <td>${projectID}</td>
-        <td>${amount}</td>
-        <td>${description}</td>
-        <td>${row.dateRecorded}</td>
-      `;
-    } else {
-      Object.values(row).forEach(val => {
-        const td = document.createElement("td");
-        td.innerText = val ?? "";
-        tr.appendChild(td);
-      });
-    }
-
+    Object.values(row).forEach(val => {
+      const td = document.createElement("td");
+      td.innerText = val ?? "";
+      tr.appendChild(td);
+    });
     tbody.appendChild(tr);
   });
 }
