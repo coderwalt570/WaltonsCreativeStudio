@@ -50,11 +50,7 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT 
-        LogID AS expenseID,
-        UserID,
-        Details,
-        Timestamp AS dateRecorded
+      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action = 'CREATE_EXPENSE'
     `;
@@ -71,36 +67,22 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
     const expenses = await executeQuery(query, params);
 
-    // Format expenses for frontend
-    const formattedExpenses = expenses.map(exp => {
-      let projectID = "";
-      let description = "";
-      let notes = "";
-      let amount = "";
+    // Parse Details safely
+    const parsedExpenses = expenses.map(exp => {
+      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+      const projectID = projMatch ? parseInt(projMatch[1], 10) : null;
 
-      if (exp.Details) {
-        const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-        projectID = projMatch ? projMatch[1] : "";
+      const parts = exp.Details.split("|");
+      const category = parts[1] ? parts[1].trim() : "";
+      const notes = parts[2] ? parts[2].replace(/\$/g, "").trim() : "";
 
-        const parts = exp.Details.split("|");
-        if (parts.length >= 2) description = parts[1].trim();
-        if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
+      const amtMatch = exp.Details.match(/\$([\d.]+)/);
+      const amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
 
-        const amtMatch = exp.Details.match(/\$([\d.]+)/);
-        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
-      }
-
-      return {
-        expenseID: exp.expenseID,
-        projectID,
-        description,
-        notes,
-        amount,
-        dateRecorded: exp.dateRecorded
-      };
+      return { ...exp, projectID, category, notes, amount };
     });
 
-    res.json({ data: formattedExpenses });
+    res.json({ data: parsedExpenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
@@ -117,7 +99,7 @@ router.post("/expenses", requireAuth, async (req, res) => {
   const { description, amount, projectID } = req.body;
 
   try {
-    const details = `ProjectID:${projectID} | ${description} | $${amount}`;
+    const details = `ProjectID:${parseInt(projectID, 10)} | ${description} | $${amount}`;
 
     await executeQuery(
       `
