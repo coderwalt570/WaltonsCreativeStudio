@@ -53,53 +53,14 @@ async function loadInvoices() {
 }
 
 // ==============================
-// Load Expenses (FROM AUDIT LOG)
+// Load Expenses (from Audit Log)
 // ==============================
 async function loadExpenses() {
   try {
     const res = await fetch("/api/data/audit-log");
     const result = await res.json();
-    const expensesData = Array.isArray(result.data) ? result.data : [];
-
-    // Filter only CREATE_EXPENSE actions
-    const expenses = expensesData
-      .filter(e => e.Action === "CREATE_EXPENSE")
-      .map(e => {
-        let projectID = null;
-        let category = "";
-        let notes = "";
-        let amount = 0;
-
-        try {
-          // Extract ProjectID
-          const pidMatch = e.Details.match(/ProjectID:(\d+)/);
-          if (pidMatch) projectID = Number(pidMatch[1]);
-
-          // Extract amount
-          const amountMatch = e.Details.match(/\$(\d+(\.\d+)?)/);
-          if (amountMatch) amount = Number(amountMatch[1]);
-
-          // Extract category and notes
-          const descMatch = e.Details.split("|");
-          if (descMatch.length >= 2) {
-            category = descMatch[0].replace(/^ProjectID:\d+\s*/,"").trim();
-            notes = descMatch[1].trim();
-          }
-        } catch (err) {
-          console.error("Expense parse error:", err, e.Details);
-        }
-
-        return {
-          expenseID: e.LogID,
-          projectID,
-          amount,
-          category,
-          notes,
-          dateRecorded: e.Timestamp
-        };
-      });
-
-    populateExpensesTable(expenses);
+    const logs = Array.isArray(result.data) ? result.data : [];
+    populateExpensesTable(logs);
   } catch (err) {
     console.error("Expense load error:", err);
     alert("Error loading expenses.");
@@ -114,21 +75,51 @@ function populateExpensesTable(data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `<tr>
-      <td colspan="6" style="text-align:center;">No expenses recorded</td>
-    </tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;">No expenses recorded</td>
+      </tr>`;
     return;
   }
 
-  data.forEach(exp => {
+  data.forEach(e => {
+    let expenseID = e.LogID;
+    let projectID = null;
+    let category = "";
+    let notes = "";
+    let amount = 0;
+    let dateRecorded = new Date(e.Timestamp).toLocaleDateString();
+
+    try {
+      // Extract ProjectID
+      const pidMatch = e.Details.match(/ProjectID:(\d+)/);
+      if (pidMatch) projectID = Number(pidMatch[1]);
+
+      // Extract Amount
+      const amountMatch = e.Details.match(/\$(\d+(\.\d+)?)/);
+      if (amountMatch) amount = Number(amountMatch[1]);
+
+      // Get description portion
+      let descPart = e.Details.replace(/ProjectID:\d+\s*\|\s*/, "").replace(/\s*\$\d+(\.\d+)?/, "").trim();
+
+      // Split category and notes
+      if (descPart.includes("|")) {
+        [category, notes] = descPart.split("|").map(v => v.trim());
+      } else {
+        notes = descPart;
+      }
+    } catch (err) {
+      console.error("Expense parse error:", err, e.Details);
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${exp.expenseID}</td>
-      <td>${exp.projectID ?? ""}</td>
-      <td>$${Number(exp.amount).toFixed(2)}</td>
-      <td>${exp.category}</td>
-      <td>${exp.notes}</td>
-      <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
+      <td>${expenseID}</td>
+      <td>${projectID ?? ""}</td>
+      <td>$${amount.toFixed(2)}</td>
+      <td>${category}</td>
+      <td>${notes}</td>
+      <td>${dateRecorded}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -142,9 +133,10 @@ function populateGenericTable(tableId, data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `<tr>
-      <td colspan="10" style="text-align:center;">No data available</td>
-    </tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align:center;">No data available</td>
+      </tr>`;
     return;
   }
 
@@ -176,4 +168,5 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
 
