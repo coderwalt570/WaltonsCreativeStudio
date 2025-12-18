@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/* ---------------- PROJECTS ---------------- */
+/* ---------------------- PROJECTS ---------------------- */
 router.get("/projects", requireAuth, async (req, res) => {
   try {
     const projects = await executeQuery(`
@@ -13,134 +13,145 @@ router.get("/projects", requireAuth, async (req, res) => {
     `);
     res.json({ data: projects });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error loading projects" });
+    console.error("Projects Error:", err);
+    res.status(500).json({ message: "Server error loading projects" });
   }
 });
 
-/* ---------------- OWNER DASHBOARD ---------------- */
+/* ---------------------- OWNER DASHBOARD ---------------------- */
 router.get("/", requireAuth, async (req, res) => {
-  if (req.session.user.role.toLowerCase() !== "owner") {
-    return res.status(403).json({ message: "Owners only" });
-  }
-
   try {
-    const projects = await executeQuery(`SELECT * FROM Project`);
-    const invoices = await executeQuery(`SELECT * FROM Invoice`);
+    const { role } = req.session.user;
+    if (role.toLowerCase() !== "owner") {
+      return res.status(403).json({ message: "Owners only" });
+    }
+
+    const projects = await executeQuery(`
+      SELECT projectID, clientID, description, dueDate, status
+      FROM Project
+    `);
+
+    const invoices = await executeQuery(`
+      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
+      FROM Invoice
+    `);
+
     res.json({ data: { projects, invoices } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Owner dashboard error" });
+    console.error("Owner Dashboard Error:", err);
+    res.status(500).json({ message: "Server error loading owner dashboard" });
   }
 });
 
-/* ---------------- EXPENSES (OWNER + MANAGER) ---------------- */
+/* ---------------------- EXPENSES (OWNER + MANAGER) ---------------------- */
 router.get("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
-  const isManager = role.toLowerCase() === "manager";
+  const userRole = role.toLowerCase();
 
   try {
-    const expenses = await executeQuery(
-      `
-      SELECT
+    let query = `
+      SELECT 
         LogID AS expenseID,
-        UserID,
-        CAST(
-          SUBSTRING(
-            Details,
-            CHARINDEX('ProjectID:', Details) + 10,
-            CHARINDEX('|', Details) - CHARINDEX('ProjectID:', Details) - 10
-          ) AS INT
-        ) AS projectID,
-        LTRIM(RTRIM(
-          SUBSTRING(
-            Details,
-            CHARINDEX('|', Details) + 1,
-            CHARINDEX('|', Details, CHARINDEX('|', Details) + 1)
-            - CHARINDEX('|', Details) - 1
-          )
-        )) AS description,
-        CAST(
-          SUBSTRING(Details, CHARINDEX('$', Details) + 1, 20)
-          AS DECIMAL(10,2)
-        ) AS amount,
+        Details,
         Timestamp AS dateRecorded
       FROM AuditLog
       WHERE Action = 'CREATE_EXPENSE'
-      ${isManager ? "AND UserID = @id" : ""}
-      ORDER BY Timestamp DESC
-      `,
-      isManager ? [{ name: "id", type: sql.Int, value: id }] : []
-    );
+    `;
+    const params = [];
 
-    res.json({ data: expenses });
+    if (userRole === "manager") {
+      query += " AND UserID = @id";
+      params.push({ name: "id", type: sql.Int, value: id });
+    } else if (userRole !== "owner") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    query += " ORDER BY Timestamp DESC";
+
+    const expenses = await executeQuery(query, params);
+
+    // Parse ProjectID, description, and amount safely in JS
+    const parsedExpenses = expenses.map(exp => {
+      let projectID = "";
+      const match = exp.Details.match(/ProjectID:(\d+)/);
+      if (match) projectID = match[1];
+
+      const parts = exp.Details.split("|").map(p => p.trim());
+      const description = parts[1] ?? "";
+      const amount = parts[2]?.replace(/\$/g, "") ?? "";
+
+      return {
+        expenseID: exp.expenseID,
+        projectID,
+        description,
+        amount,
+        dateRecorded: exp.dateRecorded
+      };
+    });
+
+    res.json({ data: parsedExpenses });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error loading expenses" });
+    console.error("Expense Fetch Error:", err);
+    res.status(500).json({ message: "Server error loading expenses" });
   }
 });
 
-/* ---------------- MANAGER: ADD EXPENSE ---------------- */
+/* ---------------------- MANAGER: ADD EXPENSE ---------------------- */
 router.post("/expenses", requireAuth, async (req, res) => {
-  if (req.session.user.role.toLowerCase() !== "manager") {
+  const { role, id } = req.session.user;
+  if (role.toLowerCase() !== "manager") {
     return res.status(403).json({ message: "Managers only" });
   }
 
-  const { projectID, description, amount } = req.body;
+  const { description, amount, projectID } = req.body;
 
   try {
+    const details = `ProjectID:${projectID} | ${description} | $${amount}`;
+
     await executeQuery(
       `
       INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
       VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
       `,
       [
-        { name: "id", type: sql.Int, value: req.session.user.id },
-        {
-          name: "details",
-          type: sql.NVarChar,
-          value: `ProjectID:${projectID} | ${description} | $${amount}`
-        }
+        { name: "id", type: sql.Int, value: id },
+        { name: "details", type: sql.NVarChar, value: details }
       ]
     );
 
-    res.json({ success: true, message: "Expense recorded" });
+    res.json({ success: true, message: "Expense recorded successfully" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error saving expense" });
+    console.error("Expense Audit Error:", err);
+    res.status(500).json({ message: "Server error recording expense" });
   }
 });
 
-/* ---------------- ACCOUNTANT DASHBOARD ---------------- */
+/* ---------------------- ACCOUNTANT DASHBOARD ---------------------- */
 router.get("/accountant", requireAuth, async (req, res) => {
-  if (req.session.user.role.toLowerCase() !== "accountant") {
+  const { role } = req.session.user;
+  if (role.toLowerCase() !== "accountant") {
     return res.status(403).json({ message: "Accountants only" });
   }
 
   try {
-    const invoices = await executeQuery(`SELECT * FROM Invoice`);
-    const payments = await executeQuery(`SELECT * FROM Payment`);
-
-    const expensesSummary = await executeQuery(`
-      SELECT
-        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, 
-          CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
-        COUNT(*) AS numberOfExpenses,
-        SUM(CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2))) AS totalAmount
-      FROM AuditLog
-      WHERE Action='CREATE_EXPENSE'
-      GROUP BY CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, 
-          CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT)
-      ORDER BY projectID
+    const invoices = await executeQuery(`
+      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus
+      FROM Invoice
     `);
 
-    res.json({ data: { invoices, payments, expensesSummary } });
+    const payments = await executeQuery(`
+      SELECT paymentID, invoiceID, method, totalAmount, transactionDate
+      FROM Payment
+    `);
+
+    res.json({ data: { invoices, payments } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error loading accountant dashboard" });
+    console.error("Accountant Dashboard Error:", err);
+    res.status(500).json({ message: "Server error loading accountant dashboard" });
   }
 });
 
 export default router;
+
 
 
