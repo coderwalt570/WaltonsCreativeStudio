@@ -53,13 +53,14 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description: category,
-        amount: notes
+        description: `${category}`,
+        amount: notes // amount stored in notes field for clarity in front-end parsing
       })
     });
 
     const result = await res.json();
-    document.getElementById("expenseMessage").innerText = result.message || "Expense saved successfully.";
+    document.getElementById("expenseMessage").innerText =
+      result.message || "Expense saved successfully.";
 
     await loadExpenses();
     document.getElementById("expenseForm").reset();
@@ -97,18 +98,12 @@ function populateExpensesTable(data) {
   }
 
   data.forEach(exp => {
-    let projectID = exp.projectID ?? "";
-    let category = exp.description ?? "";
-    let notes = exp.amount ?? "";
-    let amount = exp.amount ?? "";
-
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
-      <td>${projectID}</td>
-      <td>${category}</td>
-      <td>${notes}</td>
-      <td>$${parseFloat(amount).toFixed(2)}</td>
+      <td>${exp.projectID}</td>
+      <td>${exp.description}</td>
+      <td>$${exp.amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
@@ -146,7 +141,8 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display =
+      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
@@ -154,4 +150,3 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
-
