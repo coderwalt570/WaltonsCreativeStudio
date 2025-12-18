@@ -29,11 +29,9 @@ async function loadProjects() {
   try {
     const res = await fetch("/api/data/");
     const result = await res.json();
-    const projects = Array.isArray(result.data.projects) ? result.data.projects : [];
-    populateGenericTable("projectsTable", projects);
+    populateGenericTable("projectsTable", result.data.projects || []);
   } catch (err) {
     console.error("Project load error:", err);
-    alert("Error loading projects.");
   }
 }
 
@@ -44,23 +42,20 @@ async function loadInvoices() {
   try {
     const res = await fetch("/api/data/");
     const result = await res.json();
-    const invoices = Array.isArray(result.data.invoices) ? result.data.invoices : [];
-    populateGenericTable("invoicesTable", invoices);
+    populateGenericTable("invoicesTable", result.data.invoices || []);
   } catch (err) {
     console.error("Invoice load error:", err);
-    alert("Error loading invoices.");
   }
 }
 
 // ==============================
-// Load Expenses
+// Load Expenses (✔ FIXED)
 // ==============================
 async function loadExpenses() {
   try {
     const res = await fetch("/api/data/expenses");
     const result = await res.json();
-    const expenses = Array.isArray(result.data) ? result.data : [];
-    populateExpensesTable(expenses);
+    populateExpensesTable(result.data || []);
   } catch (err) {
     console.error("Expense load error:", err);
     alert("Error loading expenses.");
@@ -68,14 +63,17 @@ async function loadExpenses() {
 }
 
 // ==============================
-// Populate Expenses Table
+// Populate Expenses Table (OWNER SAFE)
 // ==============================
 function populateExpensesTable(data) {
   const tbody = document.getElementById("expensesTable").querySelector("tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;">No expenses recorded</td>
+      </tr>`;
     return;
   }
 
@@ -86,16 +84,13 @@ function populateExpensesTable(data) {
     let amount = "";
 
     if (exp.Details) {
-      // Parse ProjectID
       const projMatch = exp.Details.match(/ProjectID:(\d+)/);
       projectID = projMatch ? projMatch[1] : "";
 
-      // Parse Category and Notes
-      const parts = exp.Details.split("|");
-      if (parts.length >= 2) category = parts[1].trim();
-      if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
+      const parts = exp.Details.split("|").map(p => p.trim());
+      category = parts[1] || "";
+      notes = parts[2]?.replace(/\$/g, "") || "";
 
-      // Parse Amount
       const amtMatch = exp.Details.match(/\$([\d.]+)/);
       amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
     }
@@ -109,6 +104,7 @@ function populateExpensesTable(data) {
       <td>$${amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
+
     tbody.appendChild(tr);
   });
 }
@@ -121,7 +117,10 @@ function populateGenericTable(tableId, data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No data available</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align:center;">No data available</td>
+      </tr>`;
     return;
   }
 
@@ -134,19 +133,6 @@ function populateGenericTable(tableId, data) {
     });
     tbody.appendChild(tr);
   });
-}
-
-// ==============================
-// Table Filter
-// ==============================
-function filterTable(tableId, query) {
-  const rows = document.getElementById(tableId).rows;
-  query = query.toLowerCase();
-
-  for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display =
-      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
-  }
 }
 
 // ==============================
