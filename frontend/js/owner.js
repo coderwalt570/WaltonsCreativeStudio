@@ -84,7 +84,7 @@ function populateExpensesTable(data) {
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
       <td>${exp.projectID}</td>
-      <td>${exp.description}</td>
+      <td>${exp.category}</td>
       <td>${exp.notes}</td>
       <td>$${exp.amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
@@ -124,8 +124,7 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display =
-      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
@@ -133,3 +132,4 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
