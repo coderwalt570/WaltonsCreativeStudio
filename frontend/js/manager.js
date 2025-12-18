@@ -42,15 +42,10 @@ async function loadProjects() {
 async function saveExpense(event) {
   event.preventDefault();
 
-  const projectID = parseInt(document.getElementById("projectID").value, 10);
-  const amount = document.getElementById("amount").value;
+  const projectID = document.getElementById("projectID").value;
   const category = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
-
-  if (isNaN(projectID)) {
-    alert("Please select a valid project.");
-    return;
-  }
+  const amount = document.getElementById("amount").value;
 
   try {
     const res = await fetch("/api/data/expenses", {
@@ -58,13 +53,14 @@ async function saveExpense(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectID,
-        description: category,
-        amount: notes
+        description: category + " | " + notes,
+        amount
       })
     });
 
     const result = await res.json();
-    document.getElementById("expenseMessage").innerText = result.message || "Expense saved successfully.";
+    document.getElementById("expenseMessage").innerText =
+      result.message || "Expense saved successfully.";
 
     await loadExpenses();
     document.getElementById("expenseForm").reset();
@@ -146,7 +142,8 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display =
+      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
