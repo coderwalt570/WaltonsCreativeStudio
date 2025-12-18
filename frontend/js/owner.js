@@ -27,9 +27,9 @@ async function fetchDashboardData() {
 // ==============================
 async function loadProjects() {
   try {
-    const res = await fetch("/api/data/projects");
+    const res = await fetch("/api/data/");
     const result = await res.json();
-    const projects = Array.isArray(result.data) ? result.data : [];
+    const projects = Array.isArray(result.data.projects) ? result.data.projects : [];
     populateGenericTable("projectsTable", projects);
   } catch (err) {
     console.error("Project load error:", err);
@@ -53,14 +53,14 @@ async function loadInvoices() {
 }
 
 // ==============================
-// Load Expenses (from Audit Log)
+// Load Expenses
 // ==============================
 async function loadExpenses() {
   try {
-    const res = await fetch("/api/data/audit-log");
+    const res = await fetch("/api/data/expenses");
     const result = await res.json();
-    const logs = Array.isArray(result.data) ? result.data : [];
-    populateExpensesTable(logs);
+    const expenses = Array.isArray(result.data) ? result.data : [];
+    populateExpensesTable(expenses);
   } catch (err) {
     console.error("Expense load error:", err);
     alert("Error loading expenses.");
@@ -75,51 +75,39 @@ function populateExpensesTable(data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;">No expenses recorded</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
     return;
   }
 
-  data.forEach(e => {
-    let expenseID = e.LogID;
-    let projectID = null;
+  data.forEach(exp => {
+    let projectID = "";
     let category = "";
     let notes = "";
-    let amount = 0;
-    let dateRecorded = new Date(e.Timestamp).toLocaleDateString();
+    let amount = "";
 
-    try {
-      // Extract ProjectID
-      const pidMatch = e.Details.match(/ProjectID:(\d+)/);
-      if (pidMatch) projectID = Number(pidMatch[1]);
+    if (exp.Details) {
+      // Parse ProjectID
+      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+      projectID = projMatch ? projMatch[1] : "";
 
-      // Extract Amount
-      const amountMatch = e.Details.match(/\$(\d+(\.\d+)?)/);
-      if (amountMatch) amount = Number(amountMatch[1]);
+      // Parse Category and Notes
+      const parts = exp.Details.split("|");
+      if (parts.length >= 2) category = parts[1].trim();
+      if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
 
-      // Get description portion
-      let descPart = e.Details.replace(/ProjectID:\d+\s*\|\s*/, "").replace(/\s*\$\d+(\.\d+)?/, "").trim();
-
-      // Split category and notes
-      if (descPart.includes("|")) {
-        [category, notes] = descPart.split("|").map(v => v.trim());
-      } else {
-        notes = descPart;
-      }
-    } catch (err) {
-      console.error("Expense parse error:", err, e.Details);
+      // Parse Amount
+      const amtMatch = exp.Details.match(/\$([\d.]+)/);
+      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
     }
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${expenseID}</td>
-      <td>${projectID ?? ""}</td>
-      <td>$${amount.toFixed(2)}</td>
+      <td>${exp.expenseID}</td>
+      <td>${projectID}</td>
       <td>${category}</td>
       <td>${notes}</td>
-      <td>${dateRecorded}</td>
+      <td>$${amount}</td>
+      <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -133,10 +121,7 @@ function populateGenericTable(tableId, data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="10" style="text-align:center;">No data available</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No data available</td></tr>`;
     return;
   }
 
@@ -168,3 +153,4 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
