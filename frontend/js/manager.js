@@ -1,39 +1,45 @@
-// Logout function
+// ==============================
+// Logout
+// ==============================
 function logout() {
   sessionStorage.clear();
   localStorage.removeItem("token");
   window.location.href = "login.html";
 }
 
-// Welcome message
+// ==============================
+// Welcome Message
+// ==============================
 const userRole = sessionStorage.getItem("role") || "Manager";
-document.getElementById("welcome").innerText = `Welcome, ${userRole}!`;
+document.getElementById("welcome").innerText = `Welcome, ${userRole}`;
 
-// Fetch Projects
+// ==============================
+// Fetch Dashboard Data
+// ==============================
 async function fetchDashboardData() {
+  await loadProjects();
+  await loadExpenses();
+}
+
+// ==============================
+// Load Projects
+// ==============================
+async function loadProjects() {
   try {
     const res = await fetch("/api/data/projects");
-    const { data } = await res.json();
-    populateTable("projectsTable", data || []);
+    const result = await res.json();
+
+    const projects = Array.isArray(result.data) ? result.data : [];
+    populateTable("projectsTable", projects);
   } catch (err) {
-    console.error("Dashboard fetch error:", err);
-    alert("Error loading dashboard data.");
+    console.error("Project load error:", err);
+    alert("Error loading projects.");
   }
 }
 
-// Fetch Expenses (from AuditLog)
-async function loadExpenses() {
-  try {
-    const res = await fetch("/api/data/expenses");
-    const { data } = await res.json();
-    populateTable("expensesTable", data || []);
-  } catch (err) {
-    console.error("Expense load error:", err);
-    alert("Error loading expenses.");
-  }
-}
-
-// Save Expense (POST to /expenses)
+// ==============================
+// Save Expense
+// ==============================
 async function saveExpense(event) {
   event.preventDefault();
 
@@ -46,24 +52,49 @@ async function saveExpense(event) {
     const res = await fetch("/api/data/expenses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectID, amount, category, notes })
+      body: JSON.stringify({
+        projectID,
+        description: `${category} - ${notes}`,
+        amount
+      })
     });
 
-    const data = await res.json();
-    document.getElementById("expenseMessage").innerText = data.message;
+    const result = await res.json();
 
-    // Clear form
+    document.getElementById("expenseMessage").innerText = result.message || "Expense saved.";
+
+    // Reload expenses immediately
+    await loadExpenses();
+
+    // Reset form
     document.getElementById("expenseForm").reset();
-
-    // Refresh table
-    loadExpenses();
   } catch (err) {
     console.error("Save expense error:", err);
     alert("Error saving expense.");
   }
 }
 
+// ==============================
+// Load Expenses (FROM AUDIT LOG)
+// ==============================
+async function loadExpenses() {
+  try {
+    const res = await fetch("/api/data/expenses");
+    const result = await res.json();
+
+    // 🔑 FIX: Read from result.data
+    const expenses = Array.isArray(result.data) ? result.data : [];
+
+    populateTable("expensesTable", expenses);
+  } catch (err) {
+    console.error("Expense load error:", err);
+    alert("Error loading expenses.");
+  }
+}
+
+// ==============================
 // Populate Table
+// ==============================
 function populateTable(tableId, data) {
   const tbody = document.getElementById(tableId).querySelector("tbody");
   tbody.innerHTML = "";
@@ -72,8 +103,8 @@ function populateTable(tableId, data) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = document.getElementById(tableId).querySelectorAll("th").length;
-    td.style.textAlign = "center";
     td.innerText = "No data available";
+    td.style.textAlign = "center";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
@@ -90,26 +121,31 @@ function populateTable(tableId, data) {
   });
 }
 
+// ==============================
 // Table Filter
+// ==============================
 function filterTable(tableId, query) {
   const rows = document.getElementById(tableId).getElementsByTagName("tr");
   query = query.toLowerCase();
+
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i].getElementsByTagName("td");
     let match = false;
+
     for (let j = 0; j < cells.length; j++) {
       if (cells[j].innerText.toLowerCase().includes(query)) {
         match = true;
         break;
       }
     }
+
     rows[i].style.display = match ? "" : "none";
   }
 }
 
+// ==============================
 // Initial Load
+// ==============================
 fetchDashboardData();
-loadExpenses();
-
 
 
