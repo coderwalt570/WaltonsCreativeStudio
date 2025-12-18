@@ -50,39 +50,60 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
+      SELECT 
+        LogID AS expenseID,
+        Details,
+        Timestamp AS dateRecorded
       FROM AuditLog
-      WHERE Action = 'CREATE_EXPENSE'
+      WHERE Action='CREATE_EXPENSE'
     `;
     const params = [];
 
+    // Managers see only their own expenses
     if (userRole === "manager") {
       query += " AND UserID = @id";
       params.push({ name: "id", type: sql.Int, value: id });
-    } else if (userRole !== "owner") {
+    }
+
+    // Owners see everything
+    if (userRole !== "owner" && userRole !== "manager") {
       return res.status(403).json({ message: "Access denied" });
     }
 
     query += " ORDER BY Timestamp DESC";
 
-    const expenses = await executeQuery(query, params);
+    const rawExpenses = await executeQuery(query, params);
 
-    // Parse Details safely
-    const parsedExpenses = expenses.map(exp => {
-      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-      const projectID = projMatch ? parseInt(projMatch[1], 10) : null;
+    // Parse Details into structured fields
+    const expenses = rawExpenses.map(exp => {
+      let projectID = "";
+      let category = "";
+      let notes = "";
+      let amount = "";
 
-      const parts = exp.Details.split("|");
-      const category = parts[1] ? parts[1].trim() : "";
-      const notes = parts[2] ? parts[2].replace(/\$/g, "").trim() : "";
+      if (exp.Details) {
+        const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+        projectID = projMatch ? projMatch[1] : "";
 
-      const amtMatch = exp.Details.match(/\$([\d.]+)/);
-      const amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
+        const parts = exp.Details.split("|");
+        if (parts.length >= 2) category = parts[1].trim();
+        if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
 
-      return { ...exp, projectID, category, notes, amount };
+        const amtMatch = exp.Details.match(/\$([\d.]+)/);
+        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
+      }
+
+      return {
+        expenseID: exp.expenseID,
+        projectID,
+        category,
+        notes,
+        amount,
+        dateRecorded: exp.dateRecorded
+      };
     });
 
-    res.json({ data: parsedExpenses });
+    res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
@@ -99,7 +120,7 @@ router.post("/expenses", requireAuth, async (req, res) => {
   const { description, amount, projectID } = req.body;
 
   try {
-    const details = `ProjectID:${parseInt(projectID, 10)} | ${description} | $${amount}`;
+    const details = `ProjectID:${projectID} | ${description} | $${amount}`;
 
     await executeQuery(
       `
