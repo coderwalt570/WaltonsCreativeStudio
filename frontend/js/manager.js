@@ -14,8 +14,10 @@ const userRole = sessionStorage.getItem("role") || "Manager";
 document.getElementById("welcome").innerText = `Welcome, ${userRole}`;
 
 // ==============================
-// Fetch Dashboard Data
+// Initial Load
 // ==============================
+fetchDashboardData();
+
 async function fetchDashboardData() {
   await loadProjects();
   await loadExpenses();
@@ -47,23 +49,20 @@ async function saveExpense(event) {
   const category = document.getElementById("category").value;
   const notes = document.getElementById("notes").value;
 
+  const description = `${category} | ${notes}`;
+
   try {
     const res = await fetch("/api/data/expenses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectID,
-        description: `${category} | ${notes}`,
-        amount
-      })
+      body: JSON.stringify({ projectID, description, amount })
     });
 
     const result = await res.json();
-    document.getElementById("expenseMessage").innerText =
-      result.message || "Expense saved successfully.";
+    document.getElementById("expenseMessage").innerText = result.message || "Expense saved successfully.";
 
-    await loadExpenses();
     document.getElementById("expenseForm").reset();
+    await loadExpenses();
   } catch (err) {
     console.error("Save expense error:", err);
     alert("Error saving expense.");
@@ -86,25 +85,18 @@ async function loadExpenses() {
 }
 
 // ==============================
-// Populate Expenses Table (✔ FIXED)
+// Populate Expenses Table
 // ==============================
 function populateExpensesTable(data) {
-  const tbody = document
-    .getElementById("expensesTable")
-    .querySelector("tbody");
-
+  const tbody = document.querySelector("#expensesTable tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;">No expenses recorded</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
     return;
   }
 
   data.forEach(exp => {
-    // Split category and notes safely
     let category = "";
     let notes = "";
 
@@ -115,7 +107,6 @@ function populateExpensesTable(data) {
     }
 
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
       <td>${exp.projectID ?? ""}</td>
@@ -124,7 +115,6 @@ function populateExpensesTable(data) {
       <td>${notes}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
-
     tbody.appendChild(tr);
   });
 }
@@ -137,10 +127,7 @@ function populateGenericTable(tableId, data) {
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="10" style="text-align:center;">No data available</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No data available</td></tr>`;
     return;
   }
 
@@ -163,12 +150,6 @@ function filterTable(tableId, query) {
   query = query.toLowerCase();
 
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display =
-      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
-
-// ==============================
-// Initial Load
-// ==============================
-fetchDashboardData();
