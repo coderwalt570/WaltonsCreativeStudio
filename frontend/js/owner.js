@@ -1,30 +1,22 @@
-// ==============================
 // Logout
-// ==============================
 function logout() {
   sessionStorage.clear();
   localStorage.removeItem("token");
   window.location.href = "login.html";
 }
 
-// ==============================
-// Welcome Message
-// ==============================
+// Welcome
 const userRole = sessionStorage.getItem("role") || "Owner";
 document.getElementById("welcome").innerText = `Welcome, ${userRole}`;
 
-// ==============================
 // Fetch Dashboard Data
-// ==============================
 async function fetchDashboardData() {
   await loadProjects();
   await loadInvoices();
   await loadExpenses();
 }
 
-// ==============================
 // Load Projects
-// ==============================
 async function loadProjects() {
   try {
     const res = await fetch("/api/data/");
@@ -37,9 +29,7 @@ async function loadProjects() {
   }
 }
 
-// ==============================
 // Load Invoices
-// ==============================
 async function loadInvoices() {
   try {
     const res = await fetch("/api/data/");
@@ -52,9 +42,7 @@ async function loadInvoices() {
   }
 }
 
-// ==============================
 // Load Expenses
-// ==============================
 async function loadExpenses() {
   try {
     const res = await fetch("/api/data/expenses");
@@ -67,9 +55,7 @@ async function loadExpenses() {
   }
 }
 
-// ==============================
 // Populate Expenses Table
-// ==============================
 function populateExpensesTable(data) {
   const tbody = document.getElementById("expensesTable").querySelector("tbody");
   tbody.innerHTML = "";
@@ -80,31 +66,39 @@ function populateExpensesTable(data) {
   }
 
   data.forEach(exp => {
+    let projectID = "", category = "", notes = "", amount = "";
+
+    if (exp.Details) {
+      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
+      projectID = projMatch ? projMatch[1] : "";
+      const parts = exp.Details.split("|");
+      if (parts.length >= 1) category = parts[0].trim();
+      if (parts.length >= 2) notes = parts[1].trim();
+      const amtMatch = exp.Details.match(/\$([\d.]+)/);
+      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
-      <td>${exp.projectID}</td>
-      <td>${exp.category}</td>
-      <td>${exp.notes}</td>
-      <td>$${exp.amount}</td>
+      <td>${projectID}</td>
+      <td>${category}</td>
+      <td>${notes}</td>
+      <td>$${amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-// ==============================
 // Generic Table Renderer
-// ==============================
 function populateGenericTable(tableId, data) {
   const tbody = document.getElementById(tableId).querySelector("tbody");
   tbody.innerHTML = "";
-
   if (!data.length) {
     tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No data available</td></tr>`;
     return;
   }
-
   data.forEach(row => {
     const tr = document.createElement("tr");
     Object.values(row).forEach(val => {
@@ -116,22 +110,16 @@ function populateGenericTable(tableId, data) {
   });
 }
 
-// ==============================
 // Table Filter
-// ==============================
 function filterTable(tableId, query) {
   const rows = document.getElementById(tableId).rows;
   query = query.toLowerCase();
-
   for (let i = 1; i < rows.length; i++) {
-    rows[i].style.display =
-      rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
   }
 }
 
-// ==============================
 // Initial Load
-// ==============================
 fetchDashboardData();
 
 
