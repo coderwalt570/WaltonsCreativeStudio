@@ -80,33 +80,13 @@ function populateExpensesTable(data) {
   }
 
   data.forEach(exp => {
-    let projectID = "";
-    let category = "";
-    let notes = "";
-    let amount = "";
-
-    if (exp.Details) {
-      // Extract ProjectID
-      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-      projectID = projMatch ? projMatch[1] : "";
-
-      // Extract Category and Notes
-      const parts = exp.Details.split("|");
-      if (parts.length >= 2) category = parts[1].trim();
-      if (parts.length >= 3) notes = parts[2].replace(/\$/g, "").trim();
-
-      // Extract Amount
-      const amtMatch = exp.Details.match(/\$([\d.]+)/);
-      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
-    }
-
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${exp.expenseID}</td>
-      <td>${projectID}</td>
-      <td>${category}</td>
-      <td>${notes}</td>
-      <td>$${amount}</td>
+      <td>${exp.projectID}</td>
+      <td>${exp.description}</td>
+      <td>${exp.notes}</td>
+      <td>$${exp.amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
