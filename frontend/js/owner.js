@@ -168,5 +168,3 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
-
-
