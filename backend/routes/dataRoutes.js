@@ -46,8 +46,12 @@ router.get("/accountant", requireAuth, async (req, res) => {
   if (role.toLowerCase() !== "accountant") return res.status(403).json({ message: "Accountants only" });
 
   try {
-    const invoices = await executeQuery(`SELECT invoiceID, projectID, amount, dateIssued, paymentStatus FROM Invoice`);
-    const payments = await executeQuery(`SELECT paymentID, invoiceID, method, totalAmount, transactionDate FROM Payment`);
+    const invoices = await executeQuery(`
+      SELECT invoiceID, projectID, amount, dateIssued, paymentStatus FROM Invoice
+    `);
+    const payments = await executeQuery(`
+      SELECT paymentID, invoiceID, method, totalAmount, transactionDate FROM Payment
+    `);
     res.json({ data: { invoices, payments } });
   } catch (err) {
     console.error("Accountant Dashboard Error:", err);
@@ -65,7 +69,7 @@ router.get("/expenses-summary", requireAuth, async (req, res) => {
       SELECT
         CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS ProjectID,
         COUNT(*) AS NumberOfExpenses,
-        SUM(CAST(REPLACE(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20),')','') AS DECIMAL(10,2))) AS TotalAmount
+        SUM(CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2))) AS TotalAmount
       FROM AuditLog
       WHERE Action='CREATE_EXPENSE'
       GROUP BY CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT)
@@ -87,7 +91,6 @@ router.post("/expenses", requireAuth, async (req, res) => {
 
   try {
     const details = `ProjectID:${projectID} | ${description} | $${amount}`;
-
     await executeQuery(`
       INSERT INTO AuditLog (UserID, Action, Details, Timestamp)
       VALUES (@id, 'CREATE_EXPENSE', @details, GETDATE())
@@ -130,6 +133,36 @@ router.get("/expenses", requireAuth, async (req, res) => {
     res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
+    res.status(500).json({ message: "Server error loading expenses" });
+  }
+});
+
+/* ---------------------- OWNER: GET ALL EXPENSES ---------------------- */
+router.get("/expenses-owner", requireAuth, async (req, res) => {
+  const { role } = req.session.user;
+  if (role.toLowerCase() !== "owner") return res.status(403).json({ message: "Owners only" });
+
+  try {
+    const expenses = await executeQuery(`
+      SELECT
+        LogID AS expenseID,
+        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
+        LTRIM(RTRIM(SUBSTRING(
+          Details,
+          CHARINDEX('|', Details)+1,
+          CHARINDEX('|', Details, CHARINDEX('|', Details)+1) - CHARINDEX('|', Details)-1
+        ))) AS description,
+        CAST(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20) AS DECIMAL(10,2)) AS amount,
+        Timestamp AS dateRecorded,
+        UserID AS managerID
+      FROM AuditLog
+      WHERE Action='CREATE_EXPENSE'
+      ORDER BY Timestamp DESC
+    `);
+
+    res.json({ data: expenses });
+  } catch (err) {
+    console.error("Owner Expense Fetch Error:", err);
     res.status(500).json({ message: "Server error loading expenses" });
   }
 });
