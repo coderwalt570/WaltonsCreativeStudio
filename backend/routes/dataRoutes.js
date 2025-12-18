@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/* ---------------------- PROJECTS ---------------------- */
+/* ====================== PROJECTS ====================== */
 router.get("/projects", requireAuth, async (req, res) => {
   try {
     const projects = await executeQuery(`
@@ -18,7 +18,7 @@ router.get("/projects", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- OWNER DASHBOARD ---------------------- */
+/* ====================== OWNER DASHBOARD ====================== */
 router.get("/", requireAuth, async (req, res) => {
   try {
     const { role } = req.session.user;
@@ -43,10 +43,14 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- EXPENSES (OWNER + MANAGER) ---------------------- */
+/* ====================== EXPENSES (OWNER + MANAGER) ====================== */
 router.get("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
   const userRole = role.toLowerCase();
+
+  if (userRole !== "owner" && userRole !== "manager") {
+    return res.status(403).json({ message: "Access denied" });
+  }
 
   try {
     let query = `
@@ -66,11 +70,6 @@ router.get("/expenses", requireAuth, async (req, res) => {
       params.push({ name: "id", type: sql.Int, value: id });
     }
 
-    // Owners see everything
-    if (userRole !== "owner" && userRole !== "manager") {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     query += " ORDER BY Timestamp DESC";
 
     const expenses = await executeQuery(query, params);
@@ -81,9 +80,10 @@ router.get("/expenses", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- MANAGER: ADD EXPENSE ---------------------- */
+/* ====================== MANAGER: ADD EXPENSE ====================== */
 router.post("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
+
   if (role.toLowerCase() !== "manager") {
     return res.status(403).json({ message: "Managers only" });
   }
@@ -111,9 +111,10 @@ router.post("/expenses", requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- ACCOUNTANT DASHBOARD ---------------------- */
+/* ====================== ACCOUNTANT DASHBOARD ====================== */
 router.get("/accountant", requireAuth, async (req, res) => {
   const { role } = req.session.user;
+
   if (role.toLowerCase() !== "accountant") {
     return res.status(403).json({ message: "Accountants only" });
   }
