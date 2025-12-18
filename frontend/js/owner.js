@@ -29,7 +29,8 @@ async function loadProjects() {
   try {
     const res = await fetch("/api/data/");
     const result = await res.json();
-    populateGenericTable("projectsTable", result.data.projects || []);
+    const projects = Array.isArray(result.data.projects) ? result.data.projects : [];
+    populateGenericTable("projectsTable", projects);
   } catch (err) {
     console.error("Project load error:", err);
     alert("Error loading projects.");
@@ -43,7 +44,8 @@ async function loadInvoices() {
   try {
     const res = await fetch("/api/data/");
     const result = await res.json();
-    populateGenericTable("invoicesTable", result.data.invoices || []);
+    const invoices = Array.isArray(result.data.invoices) ? result.data.invoices : [];
+    populateGenericTable("invoicesTable", invoices);
   } catch (err) {
     console.error("Invoice load error:", err);
     alert("Error loading invoices.");
@@ -51,13 +53,14 @@ async function loadInvoices() {
 }
 
 // ==============================
-// Load Expenses (OWNER ROUTE)
+// Load Expenses
 // ==============================
 async function loadExpenses() {
   try {
-    const res = await fetch("/api/data/owner/expenses");
+    const res = await fetch("/api/data/expenses");
     const result = await res.json();
-    populateExpensesTable(result.data || []);
+    const expenses = Array.isArray(result.data) ? result.data : [];
+    populateExpensesTable(expenses);
   } catch (err) {
     console.error("Expense load error:", err);
     alert("Error loading expenses.");
@@ -68,26 +71,19 @@ async function loadExpenses() {
 // Populate Expenses Table
 // ==============================
 function populateExpensesTable(data) {
-  const tbody = document.querySelector("#expensesTable tbody");
+  const tbody = document.getElementById("expensesTable").querySelector("tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;">No expenses recorded</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No expenses recorded</td></tr>`;
     return;
   }
 
   data.forEach(exp => {
-    const parts = exp.Details.split("|");
-
-    const projectID = parts[0]?.replace("ProjectID:", "").trim() || "";
-    const category = parts[1]?.trim() || "";
-    const notes = parts[2]?.replace("$", "").trim() || "";
-
-    const amountMatch = exp.Details.match(/\$([\d.]+)/);
-    const amount = amountMatch ? amountMatch[1] : "0.00";
+    let projectID = exp.projectID ?? "";
+    let category = exp.description ?? "";
+    let notes = exp.amount ?? "";
+    let amount = exp.amount ?? "";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -95,7 +91,7 @@ function populateExpensesTable(data) {
       <td>${projectID}</td>
       <td>${category}</td>
       <td>${notes}</td>
-      <td>$${amount}</td>
+      <td>$${parseFloat(amount).toFixed(2)}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
     tbody.appendChild(tr);
@@ -106,14 +102,11 @@ function populateExpensesTable(data) {
 // Generic Table Renderer
 // ==============================
 function populateGenericTable(tableId, data) {
-  const tbody = document.querySelector(`#${tableId} tbody`);
+  const tbody = document.getElementById(tableId).querySelector("tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="10" style="text-align:center;">No data available</td>
-      </tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No data available</td></tr>`;
     return;
   }
 
@@ -129,8 +122,21 @@ function populateGenericTable(tableId, data) {
 }
 
 // ==============================
+// Table Filter
+// ==============================
+function filterTable(tableId, query) {
+  const rows = document.getElementById(tableId).rows;
+  query = query.toLowerCase();
+
+  for (let i = 1; i < rows.length; i++) {
+    rows[i].style.display = rows[i].innerText.toLowerCase().includes(query) ? "" : "none";
+  }
+}
+
+// ==============================
 // Initial Load
 // ==============================
 fetchDashboardData();
+
 
 
