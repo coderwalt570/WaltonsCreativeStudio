@@ -50,9 +50,13 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
   try {
     let query = `
-      SELECT LogID AS expenseID, Details, Timestamp AS dateRecorded
+      SELECT 
+        LogID AS expenseID,
+        UserID,
+        Details,
+        Timestamp AS dateRecorded
       FROM AuditLog
-      WHERE Action='CREATE_EXPENSE'
+      WHERE Action = 'CREATE_EXPENSE'
     `;
     const params = [];
 
@@ -65,35 +69,7 @@ router.get("/expenses", requireAuth, async (req, res) => {
 
     query += " ORDER BY Timestamp DESC";
 
-    const rawExpenses = await executeQuery(query, params);
-
-    const expenses = rawExpenses.map(exp => {
-      let projectID = "0";
-      let category = "Unknown";
-      let notes = "";
-      let amount = "0.00";
-
-      if (exp.Details) {
-        const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-        projectID = projMatch ? projMatch[1] : "0";
-
-        const parts = exp.Details.split("|");
-        category = parts[1] ? parts[1].trim() : "Unknown";
-        notes = parts[2] ? parts[2].replace(/\$/g, "").trim() : "";
-        const amtMatch = exp.Details.match(/\$([\d.]+)/);
-        amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "0.00";
-      }
-
-      return {
-        expenseID: exp.expenseID,
-        projectID,
-        category,
-        notes,
-        amount,
-        dateRecorded: exp.dateRecorded
-      };
-    });
-
+    const expenses = await executeQuery(query, params);
     res.json({ data: expenses });
   } catch (err) {
     console.error("Expense Fetch Error:", err);
@@ -149,7 +125,14 @@ router.get("/accountant", requireAuth, async (req, res) => {
       FROM Payment
     `);
 
-    res.json({ data: { invoices, payments } });
+    const expensesSummary = await executeQuery(`
+      SELECT Details, Timestamp AS dateRecorded
+      FROM AuditLog
+      WHERE Action = 'CREATE_EXPENSE'
+      ORDER BY Timestamp DESC
+    `);
+
+    res.json({ data: { invoices, payments, expensesSummary } });
   } catch (err) {
     console.error("Accountant Dashboard Error:", err);
     res.status(500).json({ message: "Server error loading accountant dashboard" });
@@ -157,4 +140,5 @@ router.get("/accountant", requireAuth, async (req, res) => {
 });
 
 export default router;
+
 
