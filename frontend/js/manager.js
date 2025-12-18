@@ -60,13 +60,10 @@ async function saveExpense(event) {
     });
 
     const result = await res.json();
+    document.getElementById("expenseMessage").innerText =
+      result.message || "Expense saved.";
 
-    document.getElementById("expenseMessage").innerText = result.message || "Expense saved.";
-
-    // Reload expenses immediately
-    await loadExpenses();
-
-    // Reset form
+    await loadExpenses(); // refresh table
     document.getElementById("expenseForm").reset();
   } catch (err) {
     console.error("Save expense error:", err);
@@ -82,9 +79,7 @@ async function loadExpenses() {
     const res = await fetch("/api/data/expenses");
     const result = await res.json();
 
-    // 🔑 FIX: Read from result.data
     const expenses = Array.isArray(result.data) ? result.data : [];
-
     populateTable("expensesTable", expenses);
   } catch (err) {
     console.error("Expense load error:", err);
@@ -112,11 +107,30 @@ function populateTable(tableId, data) {
 
   data.forEach(row => {
     const tr = document.createElement("tr");
-    Object.values(row).forEach(val => {
-      const td = document.createElement("td");
-      td.innerText = val ?? "";
-      tr.appendChild(td);
-    });
+
+    // ✅ SPECIAL HANDLING FOR EXPENSES (AuditLog parsing)
+    if (tableId === "expensesTable" && row.Details) {
+      const parts = row.Details.split("|").map(p => p.trim());
+
+      const projectID = parts[0]?.replace("ProjectID:", "") || "";
+      const description = parts[1] || "";
+      const amount = parts[2]?.replace("$", "") || "";
+
+      tr.innerHTML = `
+        <td>${row.expenseID}</td>
+        <td>${projectID}</td>
+        <td>${amount}</td>
+        <td>${description}</td>
+        <td>${row.dateRecorded}</td>
+      `;
+    } else {
+      Object.values(row).forEach(val => {
+        const td = document.createElement("td");
+        td.innerText = val ?? "";
+        tr.appendChild(td);
+      });
+    }
+
     tbody.appendChild(tr);
   });
 }
@@ -147,5 +161,3 @@ function filterTable(tableId, query) {
 // Initial Load
 // ==============================
 fetchDashboardData();
-
-
