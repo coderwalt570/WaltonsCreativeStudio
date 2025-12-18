@@ -122,19 +122,50 @@ router.post("/expenses", requireAuth, async (req, res) => {
 /* ---------------------- MANAGER: GET EXPENSES (FROM AUDIT LOG) ---------------------- */
 router.get("/expenses", requireAuth, async (req, res) => {
   const { role, id } = req.session.user;
-  if (role.toLowerCase() !== "manager") return res.status(403).json({ message: "Access denied: Managers only" });
+  if (role.toLowerCase() !== "manager") {
+    return res.status(403).json({ message: "Access denied: Managers only" });
+  }
 
   try {
     const expenses = await executeQuery(
       `
-      SELECT 
+      SELECT
         LogID AS expenseID,
-        CAST(SUBSTRING(Details, CHARINDEX('ProjectID:', Details)+10, CHARINDEX('|', Details)-CHARINDEX('ProjectID:', Details)-10) AS INT) AS projectID,
-        SUBSTRING(Details, CHARINDEX('|', Details)+2, CHARINDEX('|', Details, CHARINDEX('|', Details)+1)-CHARINDEX('|', Details)-3) AS description,
-        CAST(REPLACE(SUBSTRING(Details, CHARINDEX('$', Details)+1, 20), ')','') AS DECIMAL(10,2)) AS amount,
-        Timestamp AS dateRecorded
+
+        -- Extract ProjectID
+        CAST(
+          SUBSTRING(
+            Details,
+            CHARINDEX('ProjectID:', Details) + 10,
+            CHARINDEX('|', Details) - (CHARINDEX('ProjectID:', Details) + 10)
+          ) AS INT
+        ) AS projectID,
+
+        -- Extract description
+        LTRIM(RTRIM(
+          SUBSTRING(
+            Details,
+            CHARINDEX('|', Details) + 1,
+            CHARINDEX('|', Details, CHARINDEX('|', Details) + 1)
+              - CHARINDEX('|', Details) - 1
+          )
+        )) AS category,
+
+        -- Extract amount
+        CAST(
+          SUBSTRING(
+            Details,
+            CHARINDEX('$', Details) + 1,
+            LEN(Details)
+          ) AS DECIMAL(10,2)
+        ) AS amount,
+
+        Details AS notes,
+        Timestamp AS dateCreated
+
       FROM AuditLog
-      WHERE UserID=@id AND Action='CREATE_EXPENSE'
+      WHERE UserID = @id
+        AND Action = 'CREATE_EXPENSE'
       ORDER BY Timestamp DESC
       `,
       [{ name: "id", type: sql.Int, value: id }]
@@ -146,5 +177,4 @@ router.get("/expenses", requireAuth, async (req, res) => {
     res.status(500).json({ message: "Server error loading expenses" });
   }
 });
-
 export default router;
