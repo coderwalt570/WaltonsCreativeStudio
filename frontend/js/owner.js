@@ -32,6 +32,7 @@ async function loadProjects() {
     populateGenericTable("projectsTable", result.data.projects || []);
   } catch (err) {
     console.error("Project load error:", err);
+    alert("Error loading projects.");
   }
 }
 
@@ -45,15 +46,16 @@ async function loadInvoices() {
     populateGenericTable("invoicesTable", result.data.invoices || []);
   } catch (err) {
     console.error("Invoice load error:", err);
+    alert("Error loading invoices.");
   }
 }
 
 // ==============================
-// Load Expenses (✔ FIXED)
+// Load Expenses (OWNER ROUTE)
 // ==============================
 async function loadExpenses() {
   try {
-    const res = await fetch("/api/data/expenses");
+    const res = await fetch("/api/data/owner/expenses");
     const result = await res.json();
     populateExpensesTable(result.data || []);
   } catch (err) {
@@ -63,10 +65,10 @@ async function loadExpenses() {
 }
 
 // ==============================
-// Populate Expenses Table (OWNER SAFE)
+// Populate Expenses Table
 // ==============================
 function populateExpensesTable(data) {
-  const tbody = document.getElementById("expensesTable").querySelector("tbody");
+  const tbody = document.querySelector("#expensesTable tbody");
   tbody.innerHTML = "";
 
   if (!data.length) {
@@ -78,22 +80,14 @@ function populateExpensesTable(data) {
   }
 
   data.forEach(exp => {
-    let projectID = "";
-    let category = "";
-    let notes = "";
-    let amount = "";
+    const parts = exp.Details.split("|");
 
-    if (exp.Details) {
-      const projMatch = exp.Details.match(/ProjectID:(\d+)/);
-      projectID = projMatch ? projMatch[1] : "";
+    const projectID = parts[0]?.replace("ProjectID:", "").trim() || "";
+    const category = parts[1]?.trim() || "";
+    const notes = parts[2]?.replace("$", "").trim() || "";
 
-      const parts = exp.Details.split("|").map(p => p.trim());
-      category = parts[1] || "";
-      notes = parts[2]?.replace(/\$/g, "") || "";
-
-      const amtMatch = exp.Details.match(/\$([\d.]+)/);
-      amount = amtMatch ? parseFloat(amtMatch[1]).toFixed(2) : "";
-    }
+    const amountMatch = exp.Details.match(/\$([\d.]+)/);
+    const amount = amountMatch ? amountMatch[1] : "0.00";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -104,7 +98,6 @@ function populateExpensesTable(data) {
       <td>$${amount}</td>
       <td>${new Date(exp.dateRecorded).toLocaleDateString()}</td>
     `;
-
     tbody.appendChild(tr);
   });
 }
@@ -113,7 +106,7 @@ function populateExpensesTable(data) {
 // Generic Table Renderer
 // ==============================
 function populateGenericTable(tableId, data) {
-  const tbody = document.getElementById(tableId).querySelector("tbody");
+  const tbody = document.querySelector(`#${tableId} tbody`);
   tbody.innerHTML = "";
 
   if (!data.length) {
@@ -139,4 +132,5 @@ function populateGenericTable(tableId, data) {
 // Initial Load
 // ==============================
 fetchDashboardData();
+
 
